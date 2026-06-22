@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.0 (2026-06-23) Re-release with modernized features and security improvements
 
 - Add a tested Rector set and upgrade guide for migrating from `specshaper/encrypt-bundle`, including modern blind-index, key-provider, hashing, mapping, and ciphertext-envelope symbols used by downstream forks.
 - Make versioned AES-256-GCM authenticated encryption the default while retaining legacy CBC/GCM reads.
@@ -16,7 +16,7 @@
 - Replace YAML service definitions with native PHP configuration and remove unused Monolog/Sodium requirements.
 - Rewrite installation, rotation, migration, and security documentation.
 
-## 3.2.0 (2024-05-30)
+## 3.2.0 (2024-05-30) Update
 Resolve issue of child classes containing Encrypted values not persisting correctly.  
 Made Twig extension an opt-out in config.  
 Check for null encrypted values on insert.  
