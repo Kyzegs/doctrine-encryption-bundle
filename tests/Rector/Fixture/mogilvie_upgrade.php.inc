@@ -1,5 +1,6 @@
 <?php
 
+use SpecShaper\EncryptBundle\Annotations\BlindIndex;
 use SpecShaper\EncryptBundle\Annotations\Encrypted;
 use SpecShaper\EncryptBundle\Encryptors\AesGcmEncryptor;
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
@@ -12,6 +13,9 @@ final class Customer
 {
     #[Encrypted]
     public string $secret;
+
+    #[BlindIndex(sourceField: 'secret')]
+    public ?string $secretLookup = null;
 
     public function __construct(
         private readonly EncryptorInterface $encryptor,
@@ -39,6 +43,7 @@ $classes = [
 <?php
 
 use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
 use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Kyzegs\DoctrineEncryptionBundle\DoctrineEncryptionBundle;
@@ -50,6 +55,9 @@ final class Customer
 {
     #[Encrypted]
     public string $secret;
+
+    #[BlindIndex(sourceField: 'secret')]
+    public ?string $secretLookup = null;
 
     public function __construct(
         private readonly EncryptorInterface $encryptor,

@@ -6,6 +6,8 @@ The bundled Rector set migrates the complete public PHP API from
 [`mogilvie/EncryptBundle`](https://github.com/mogilvie/EncryptBundle). It updates imports, fully-qualified names,
 type declarations, attributes, inheritance, `::class` references, and PHPDoc class references. The legacy
 `Annotations\Encrypted` marker is intentionally migrated to the modern `Attribute\Encrypted` class.
+The set also recognizes `BlindIndex` and every other class in the current public API, including symbols that may
+have been backported by downstream forks.
 
 Back up the encryption key and the old YAML file first. Replace the package without running Symfony's Composer
 scripts until the PHP and configuration migration is complete:
@@ -58,6 +60,13 @@ option has been removed. See the sections below for the new key-provider, rotati
 The recommended Flex integration is a recipe in `symfony/recipes-contrib`, maintained alongside releases of this
 bundle. It should register `DoctrineEncryptionBundle` and create a minimal `doctrine_encryption.yaml` for new
 installs; it should not attempt to delete or rewrite the legacy configuration.
+
+### New features such as blind indexes
+
+The original `specshaper/encrypt-bundle` does not provide blind indexes, so Rector cannot infer which encrypted
+fields should receive one or safely create the required database columns. Add `#[BlindIndex]` fields explicitly,
+configure a distinct `blind_index_key`, create and review the Doctrine migration, then populate existing rows with
+`bin/console encrypt:blind-index update --dry-run` before running it without `--dry-run`.
 
 ## Upgrading to the modernized release
 
