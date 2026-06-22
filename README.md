@@ -216,6 +216,47 @@ will be discontinued in the next major update.
     protected ?String $dob;
    
 ```
+
+### XML, YAML, and PHP mapping
+
+Encryption can be kept out of the entity by setting the Doctrine field option
+`encrypted` to `true`. The listener and the `encrypt:database` command read the
+same Doctrine metadata, so this works with any mapping driver that supports
+field options.
+
+XML:
+
+```xml
+<field name="taxNumber" type="string">
+    <options>
+        <option name="encrypted">true</option>
+    </options>
+</field>
+```
+
+YAML:
+
+```yaml
+fields:
+  taxNumber:
+    type: string
+    options:
+      encrypted: true
+```
+
+PHP:
+
+```php
+$metadata->mapField([
+    'fieldName' => 'taxNumber',
+    'type' => 'string',
+    'options' => ['encrypted' => true],
+]);
+```
+
+Attributes and external mapping can be mixed during a migration. A field is
+encrypted when either its configured attribute or the mapping option is present.
+
 Where encrypting a field you will need to set the column type as string.  
 
 Your getters and setters may also need to be type declared.  

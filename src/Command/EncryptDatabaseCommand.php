@@ -13,6 +13,7 @@ use Symfony\Component\Console\Command\Command;
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
 /**
  * bin/console encrypt:database decrypt --manager=default
@@ -31,7 +32,7 @@ class EncryptDatabaseCommand extends Command
     public function __construct(
         private readonly EncryptorInterface $encryptor,
         private readonly ManagerRegistry $registry,
-        private readonly array $annotationArray
+        private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider
     )
     {
         parent::__construct();
@@ -127,41 +128,21 @@ class EncryptDatabaseCommand extends Command
                 continue;
             }
 
-            $reflectionClass = new \ReflectionClass($entityMeta->getName());
-
-            $properties = $reflectionClass->getProperties();
-
             $tableName = $entityMeta->getTableName();
 
             $classMeta = $this->em->getClassMetadata($entityMeta->getName());
 
-            foreach ($properties as $key => $refProperty) {
-
-                if ($this->isEncryptedProperty($refProperty)) {
-
-                    if (!isset($this->encryptedFields[$tableName])) {
-                        $this->encryptedFields[$tableName] = [];
-                    }
-
-                    $columnName = $classMeta->getColumnName($refProperty->getName());
-                    $this->encryptedFields[$tableName][$refProperty->getName()] = $columnName;
+            foreach (array_keys($this->encryptedFieldMetadataProvider->getForClassMetadata($classMeta)) as $fieldName) {
+                if (!isset($this->encryptedFields[$tableName])) {
+                    $this->encryptedFields[$tableName] = [];
                 }
+
+                $columnName = $classMeta->getColumnName($fieldName);
+                $this->encryptedFields[$tableName][$fieldName] = $columnName;
             }
         }
 
         return $this->encryptedFields;
     }
 
-    private function isEncryptedProperty(\ReflectionProperty $refProperty): bool
-    {
-
-        foreach ($refProperty->getAttributes() as $refAttribute) {
-
-            if (in_array($refAttribute->getName(), $this->annotationArray)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }

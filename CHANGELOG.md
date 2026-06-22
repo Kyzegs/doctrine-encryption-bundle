@@ -1,5 +1,8 @@
 #Change Log
 
+## Unreleased
+- Add format-neutral encrypted field mapping through Doctrine's `encrypted` field option.
+
 ## 3.2.0 (2024-05-40) Update
 Resolve issue of child classes containing Encrypted values not persisting correctly.  
 Made Twig extension an opt-out in config.  
