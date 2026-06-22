@@ -11,8 +11,12 @@ use Doctrine\Persistence\Mapping\RuntimeReflectionService;
 use Doctrine\Persistence\ObjectManager;
 use PHPUnit\Framework\TestCase;
 use SpecShaper\EncryptBundle\Annotations\Encrypted;
+use SpecShaper\EncryptBundle\BlindIndex\BlindIndexMetadataProvider;
+use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListener;
+use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
+use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
 class DoctrineEncryptListenerTest extends TestCase
 {
@@ -32,7 +36,7 @@ class DoctrineEncryptListenerTest extends TestCase
 
         $objectManager = $this->createObjectManager($meta, $unitOfWork);
         $encryptor = new RecordingEncryptor();
-        $listener = new TestableDoctrineEncryptListener($encryptor, $objectManager, [Encrypted::class], false);
+        $listener = $this->createListener($encryptor);
 
         self::assertTrue($listener->process($objectManager, $entity, true, false));
         self::assertSame('encrypted[address.secret]:plain-secret', $entity->address->secret);
@@ -52,7 +56,7 @@ class DoctrineEncryptListenerTest extends TestCase
 
         $objectManager = $this->createObjectManager($meta, $unitOfWork);
         $encryptor = new RecordingEncryptor();
-        $listener = new TestableDoctrineEncryptListener($encryptor, $objectManager, [Encrypted::class], false);
+        $listener = $this->createListener($encryptor);
 
         self::assertTrue($listener->process($objectManager, $entity, false, false));
         self::assertSame('plain-secret', $entity->address->secret);
@@ -71,6 +75,17 @@ class DoctrineEncryptListenerTest extends TestCase
             ->willReturn($unitOfWork);
 
         return $objectManager;
+    }
+
+    private function createListener(EncryptorInterface $encryptor): TestableDoctrineEncryptListener
+    {
+        return new TestableDoctrineEncryptListener(
+            $encryptor,
+            false,
+            new BlindIndexMetadataProvider(),
+            new BlindIndexUpdater($this->createMock(BlindIndexHasherInterface::class)),
+            new EncryptedFieldMetadataProvider([Encrypted::class])
+        );
     }
 
     private function createEntityMetadata(): ClassMetadata

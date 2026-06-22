@@ -2,7 +2,6 @@
 
 namespace SpecShaper\EncryptBundle\EventListener;
 
-use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\ORM\Events;
 use Doctrine\Persistence\Event\LifecycleEventArgs;
@@ -13,6 +12,7 @@ use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use SpecShaper\EncryptBundle\Exception\EncryptException;
 use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
+use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
 /**
  * Doctrine event listener which encrypts/decrypts entities.
@@ -28,12 +28,6 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     public const ENCRYPTOR_INTERFACE_NS = EncryptorInterface::class;
 
     /**
-     * An array of annotations which are to be encrypted.
-     * The default and initial is the bundle Encrypted Class.
-     */
-    protected array $annotationArray;
-
-    /**
      * Caches encrypted Doctrine fields keyed by entity class name.
      *
      * @var array<string, array<string, ReflectionProperty>>
@@ -42,21 +36,13 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
 
     private array $rawValues = [];
 
-    private bool $isDisabled;
-
-    /**
-     * @param EntityManagerInterface $em Deprecated in favour of fetching object manager from event args.
-     */
     public function __construct(
         private readonly EncryptorInterface $encryptor,
-        private readonly EntityManagerInterface $em,
-        array $annotationArray,
-        bool $isDisabled,
-        private readonly ?BlindIndexMetadataProvider $blindIndexMetadataProvider = null,
-        private readonly ?BlindIndexUpdater $blindIndexUpdater = null
+        private bool $isDisabled,
+        private readonly BlindIndexMetadataProvider $blindIndexMetadataProvider,
+        private readonly BlindIndexUpdater $blindIndexUpdater,
+        private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider
     ) {
-        $this->annotationArray = $annotationArray;
-        $this->isDisabled = $isDisabled;
     }
 
     public function getEncryptor(): EncryptorInterface
@@ -144,7 +130,7 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     {
         // Get the encrypted properties in the entity.
         $properties = $this->getEncryptedFields($objectManager, $entity);
-        $blindIndexes = $this->blindIndexMetadataProvider?->getForEntity($objectManager, $entity) ?? [];
+        $blindIndexes = $this->blindIndexMetadataProvider->getForEntity($objectManager, $entity);
 
         // If no encrypted properties, return false.
         if (empty($properties) && empty($blindIndexes)) {
@@ -158,10 +144,6 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
         $blindIndexesUpdated = false;
 
         if ($isEncryptOperation && !empty($blindIndexes)) {
-            if (null === $this->blindIndexUpdater) {
-                throw new EncryptException('Cannot create blind indexes; no blind index updater is configured.');
-            }
-
             $blindIndexesUpdated = $this->blindIndexUpdater->update($entity, $blindIndexes, $changeSet);
         }
 
@@ -243,87 +225,23 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
      */
     protected function getEncryptedFields(ObjectManager $objectManager, object $entity): array
     {
-        $meta = $objectManager->getClassMetadata(get_class($entity));
-        $reflectionClass = $this->getOriginalEntityReflection($objectManager, $entity);
-
-        $className = $reflectionClass->getName();
+        $classMetadata = $objectManager->getClassMetadata(get_class($entity));
+        $className = $classMetadata->getName();
 
         if (isset($this->encryptedFieldCache[$className])) {
             return $this->encryptedFieldCache[$className];
         }
 
-        $encryptedFields = [];
-
-        foreach ($this->getDoctrineFieldMappings($meta) as $field => $mapping) {
-            $refProperty = $this->getOriginalFieldReflection($reflectionClass, $field, $mapping);
-            if ($this->isEncryptedProperty($refProperty)) {
-                $metaRefProperty = $meta->getReflectionProperty($field);
-
-                if (null !== $metaRefProperty) {
-                    $encryptedFields[$field] = $metaRefProperty;
-                }
-            }
-        }
+        $encryptedFields = $this->encryptedFieldMetadataProvider->getForClassMetadata($classMetadata);
 
         $this->encryptedFieldCache[$className] = $encryptedFields;
 
         return $encryptedFields;
     }
 
-    private function getOriginalFieldReflection(\ReflectionClass $entityReflectionClass, string $field, mixed $mapping): ReflectionProperty
-    {
-        $originalClass = $this->getMappingValue($mapping, 'originalClass') ?? $entityReflectionClass->getName();
-        $originalField = $this->getMappingValue($mapping, 'originalField') ?? $field;
-
-        return new ReflectionProperty($originalClass, $originalField);
-    }
-
-    private function getDoctrineFieldMappings(object $meta): array
-    {
-        if (property_exists($meta, 'fieldMappings')) {
-            return $meta->fieldMappings;
-        }
-
-        $fields = [];
-
-        foreach ($meta->getFieldNames() as $field) {
-            $fields[$field] = [];
-        }
-
-        return $fields;
-    }
-
-    private function getMappingValue(mixed $mapping, string $key): mixed
-    {
-        if (is_array($mapping)) {
-            return $mapping[$key] ?? null;
-        }
-
-        if (is_object($mapping) && isset($mapping->$key)) {
-            return $mapping->$key;
-        }
-
-        return null;
-    }
-
     private function isEncryptedProperty(ReflectionProperty $refProperty): bool
     {
-
-        // If PHP8, and has attributes.
-        if(method_exists($refProperty, 'getAttributes')) {
-            foreach ($refProperty->getAttributes() as $refAttribute) {
-                if (in_array($refAttribute->getName(), $this->annotationArray)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return $this->encryptedFieldMetadataProvider->hasEncryptedAttribute($refProperty);
     }
 
-    protected function getOriginalEntityReflection(ObjectManager $objectManager, $entity): \ReflectionClass
-    {
-        $realClassName = $objectManager->getClassMetadata(get_class($entity))->getName();
-        return new \ReflectionClass($realClassName);
-    }
 }

@@ -48,10 +48,12 @@ services:
 
     SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater: ~
 
-    # CLI command to encrypt or decrypt all fields in a database
-    SpecShaper\EncryptBundle\Command\EncryptDatabaseCommand:
+    SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider:
         arguments:
-            $annotationArray: '%spec_shaper_encrypt.annotation_classes%'
+            $attributeClasses: '%spec_shaper_encrypt.annotation_classes%'
+
+    # CLI command to encrypt or decrypt all fields in a database
+    SpecShaper\EncryptBundle\Command\EncryptDatabaseCommand: ~
 
     # CLI command to build or rebuild blind index fields
     SpecShaper\EncryptBundle\Command\BlindIndexDatabaseCommand: ~

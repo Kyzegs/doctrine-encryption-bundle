@@ -47,9 +47,18 @@ class SpecShaperEncryptExtension extends Extension
         $doctrineListener = new Definition($config['listener_class']);
         $doctrineListener
             ->setAutowired(true)
-            ->setArgument('$annotationArray', $config['annotation_classes'])
             ->setArgument('$isDisabled', $config['is_disabled'])
         ;
+
+        // Keep supporting custom listeners that use the bundle's historical
+        // annotation array constructor argument.
+        $listenerConstructor = (new \ReflectionClass($config['listener_class']))->getConstructor();
+        foreach ($listenerConstructor?->getParameters() ?? [] as $parameter) {
+            if ('annotationArray' === $parameter->getName()) {
+                $doctrineListener->setArgument('$annotationArray', $config['annotation_classes']);
+                break;
+            }
+        }
 
         $encryptEventListener = new Definition(EncryptEventListener::class);
         $encryptEventListener

@@ -4,8 +4,6 @@ namespace SpecShaper\EncryptBundle\EventListener;
 
 use Doctrine\Persistence\Event\LifecycleEventArgs;
 use Doctrine\ORM\Event\OnFlushEventArgs;
-use Doctrine\ORM\EntityManagerInterface;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 
 /**
  * Doctrine event listener interface which encrypts/decrypts entities.
@@ -14,16 +12,6 @@ interface DoctrineEncryptListenerInterface
 {
     public const ENCRYPTED_SUFFIX = '<ENC>';
     
-    /**
-     * @param EntityManagerInterface $em Deprecated in favour of getting object manager from event args.
-     */
-    public function __construct(
-        EncryptorInterface $encryptor,
-        EntityManagerInterface $em,
-        array $annotationArray,
-        bool $isDisabled
-    );
-
     /**
      * Encrypt the password before it is written to the database.
      *

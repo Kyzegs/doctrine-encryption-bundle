@@ -13,6 +13,7 @@ use Symfony\Component\Console\Command\Command;
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
+use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
 /**
  * bin/console encrypt:database decrypt --manager=default
@@ -31,7 +32,7 @@ class EncryptDatabaseCommand extends Command
     public function __construct(
         private readonly EncryptorInterface $encryptor,
         private readonly ManagerRegistry $registry,
-        private readonly array $annotationArray
+        private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider
     )
     {
         parent::__construct();
@@ -127,76 +128,21 @@ class EncryptDatabaseCommand extends Command
                 continue;
             }
 
-            $reflectionClass = new \ReflectionClass($entityMeta->getName());
-
             $tableName = $entityMeta->getTableName();
 
             $classMeta = $this->em->getClassMetadata($entityMeta->getName());
 
-            foreach ($this->getDoctrineFieldMappings($classMeta) as $field => $mapping) {
-                $refProperty = $this->getOriginalFieldReflection($reflectionClass, $field, $mapping);
-
-                if ($this->isEncryptedProperty($refProperty)) {
-
-                    if (!isset($this->encryptedFields[$tableName])) {
-                        $this->encryptedFields[$tableName] = [];
-                    }
-
-                    $columnName = $classMeta->getColumnName($field);
-                    $this->encryptedFields[$tableName][$field] = $columnName;
+            foreach (array_keys($this->encryptedFieldMetadataProvider->getForClassMetadata($classMeta)) as $fieldName) {
+                if (!isset($this->encryptedFields[$tableName])) {
+                    $this->encryptedFields[$tableName] = [];
                 }
+
+                $columnName = $classMeta->getColumnName($fieldName);
+                $this->encryptedFields[$tableName][$fieldName] = $columnName;
             }
         }
 
         return $this->encryptedFields;
     }
 
-    private function getOriginalFieldReflection(\ReflectionClass $entityReflectionClass, string $field, mixed $mapping): \ReflectionProperty
-    {
-        $originalClass = $this->getMappingValue($mapping, 'originalClass') ?? $entityReflectionClass->getName();
-        $originalField = $this->getMappingValue($mapping, 'originalField') ?? $field;
-
-        return new \ReflectionProperty($originalClass, $originalField);
-    }
-
-    private function getDoctrineFieldMappings(object $meta): array
-    {
-        if (property_exists($meta, 'fieldMappings')) {
-            return $meta->fieldMappings;
-        }
-
-        $fields = [];
-
-        foreach ($meta->getFieldNames() as $field) {
-            $fields[$field] = [];
-        }
-
-        return $fields;
-    }
-
-    private function getMappingValue(mixed $mapping, string $key): mixed
-    {
-        if (is_array($mapping)) {
-            return $mapping[$key] ?? null;
-        }
-
-        if (is_object($mapping) && isset($mapping->$key)) {
-            return $mapping->$key;
-        }
-
-        return null;
-    }
-
-    private function isEncryptedProperty(\ReflectionProperty $refProperty): bool
-    {
-
-        foreach ($refProperty->getAttributes() as $refAttribute) {
-
-            if (in_array($refAttribute->getName(), $this->annotationArray)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
