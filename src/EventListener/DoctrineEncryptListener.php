@@ -34,8 +34,9 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     protected array $annotationArray;
 
     /**
-     * Caches information on an entity's encrypted fields in an array keyed on
-     * the entity's class name. The value will be a list of Reflected fields that are encrypted.
+     * Caches encrypted Doctrine fields keyed by entity class name.
+     *
+     * @var array<string, array<string, ReflectionProperty>>
      */
     protected array $encryptedFieldCache = [];
 
@@ -164,11 +165,8 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
             $blindIndexesUpdated = $this->blindIndexUpdater->update($entity, $blindIndexes, $changeSet);
         }
 
-        foreach ($properties as $refProperty) {
+        foreach ($properties as $field => $refProperty) {
 
-            $field = $refProperty->getName();
-
-            // Get the value in the entity.
             $value = $refProperty->getValue($entity);
 
             if (is_object($value)) {
@@ -245,6 +243,7 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
      */
     protected function getEncryptedFields(ObjectManager $objectManager, object $entity): array
     {
+        $meta = $objectManager->getClassMetadata(get_class($entity));
         $reflectionClass = $this->getOriginalEntityReflection($objectManager, $entity);
 
         $className = $reflectionClass->getName();
@@ -253,19 +252,58 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
             return $this->encryptedFieldCache[$className];
         }
 
-        $properties = $reflectionClass->getProperties();
-
         $encryptedFields = [];
 
-        foreach ($properties as $key => $refProperty) {
+        foreach ($this->getDoctrineFieldMappings($meta) as $field => $mapping) {
+            $refProperty = $this->getOriginalFieldReflection($reflectionClass, $field, $mapping);
             if ($this->isEncryptedProperty($refProperty)) {
-                $encryptedFields[$key] = $refProperty;
+                $metaRefProperty = $meta->getReflectionProperty($field);
+
+                if (null !== $metaRefProperty) {
+                    $encryptedFields[$field] = $metaRefProperty;
+                }
             }
         }
 
         $this->encryptedFieldCache[$className] = $encryptedFields;
 
         return $encryptedFields;
+    }
+
+    private function getOriginalFieldReflection(\ReflectionClass $entityReflectionClass, string $field, mixed $mapping): ReflectionProperty
+    {
+        $originalClass = $this->getMappingValue($mapping, 'originalClass') ?? $entityReflectionClass->getName();
+        $originalField = $this->getMappingValue($mapping, 'originalField') ?? $field;
+
+        return new ReflectionProperty($originalClass, $originalField);
+    }
+
+    private function getDoctrineFieldMappings(object $meta): array
+    {
+        if (property_exists($meta, 'fieldMappings')) {
+            return $meta->fieldMappings;
+        }
+
+        $fields = [];
+
+        foreach ($meta->getFieldNames() as $field) {
+            $fields[$field] = [];
+        }
+
+        return $fields;
+    }
+
+    private function getMappingValue(mixed $mapping, string $key): mixed
+    {
+        if (is_array($mapping)) {
+            return $mapping[$key] ?? null;
+        }
+
+        if (is_object($mapping) && isset($mapping->$key)) {
+            return $mapping->$key;
+        }
+
+        return null;
     }
 
     private function isEncryptedProperty(ReflectionProperty $refProperty): bool

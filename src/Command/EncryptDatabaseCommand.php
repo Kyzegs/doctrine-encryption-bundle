@@ -129,13 +129,12 @@ class EncryptDatabaseCommand extends Command
 
             $reflectionClass = new \ReflectionClass($entityMeta->getName());
 
-            $properties = $reflectionClass->getProperties();
-
             $tableName = $entityMeta->getTableName();
 
             $classMeta = $this->em->getClassMetadata($entityMeta->getName());
 
-            foreach ($properties as $key => $refProperty) {
+            foreach ($this->getDoctrineFieldMappings($classMeta) as $field => $mapping) {
+                $refProperty = $this->getOriginalFieldReflection($reflectionClass, $field, $mapping);
 
                 if ($this->isEncryptedProperty($refProperty)) {
 
@@ -143,13 +142,49 @@ class EncryptDatabaseCommand extends Command
                         $this->encryptedFields[$tableName] = [];
                     }
 
-                    $columnName = $classMeta->getColumnName($refProperty->getName());
-                    $this->encryptedFields[$tableName][$refProperty->getName()] = $columnName;
+                    $columnName = $classMeta->getColumnName($field);
+                    $this->encryptedFields[$tableName][$field] = $columnName;
                 }
             }
         }
 
         return $this->encryptedFields;
+    }
+
+    private function getOriginalFieldReflection(\ReflectionClass $entityReflectionClass, string $field, mixed $mapping): \ReflectionProperty
+    {
+        $originalClass = $this->getMappingValue($mapping, 'originalClass') ?? $entityReflectionClass->getName();
+        $originalField = $this->getMappingValue($mapping, 'originalField') ?? $field;
+
+        return new \ReflectionProperty($originalClass, $originalField);
+    }
+
+    private function getDoctrineFieldMappings(object $meta): array
+    {
+        if (property_exists($meta, 'fieldMappings')) {
+            return $meta->fieldMappings;
+        }
+
+        $fields = [];
+
+        foreach ($meta->getFieldNames() as $field) {
+            $fields[$field] = [];
+        }
+
+        return $fields;
+    }
+
+    private function getMappingValue(mixed $mapping, string $key): mixed
+    {
+        if (is_array($mapping)) {
+            return $mapping[$key] ?? null;
+        }
+
+        if (is_object($mapping) && isset($mapping->$key)) {
+            return $mapping->$key;
+        }
+
+        return null;
     }
 
     private function isEncryptedProperty(\ReflectionProperty $refProperty): bool

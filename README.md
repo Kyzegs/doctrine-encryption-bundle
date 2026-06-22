@@ -218,6 +218,10 @@ will be discontinued in the next major update.
 ```
 Where encrypting a field you will need to set the column type as string.  
 
+Encrypted attributes are also supported on properties inside Doctrine Embeddables. Add
+`#[Encrypted]` to the scalar property in the embeddable class; the owning entity
+field path will be used during encryption and decryption.
+
 Your getters and setters may also need to be type declared.  
 
 For example, boolean should either be return declared bool, or return a bool using a ternary method.  
