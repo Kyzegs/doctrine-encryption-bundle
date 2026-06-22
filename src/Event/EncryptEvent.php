@@ -1,24 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Event;
 
 use Symfony\Contracts\EventDispatcher\Event;
 
 class EncryptEvent extends Event implements EncryptEventInterface
 {
-    /**
-     * The string / object to be encrypted or decrypted.
-     */
-    protected string $value;
-
-    /**
-     * EncryptEvent constructor.
-     *
-     * @param string $value
-     */
-    public function __construct(?string $value)
-    {
-        $this->value = $value;
+    public function __construct(
+        /**
+         * The string / object to be encrypted or decrypted.
+         */
+        protected ?string $value,
+    ) {
     }
 
     public function getValue(): ?string

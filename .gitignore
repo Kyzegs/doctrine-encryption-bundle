@@ -1,3 +1,6 @@
 /.idea
 /vendor
 composer.lock
+/.php-cs-fixer.cache
+/.phpstan-cache
+/.phpunit.cache

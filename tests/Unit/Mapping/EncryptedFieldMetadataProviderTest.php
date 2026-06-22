@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Tests\Unit\Mapping;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
@@ -45,6 +47,11 @@ final class EncryptedFieldMetadataProviderTest extends TestCase
         self::assertSame(['externalField'], array_keys($fields));
     }
 
+    /**
+     * @param array<string, array<string, mixed>> $fields
+     *
+     * @return ClassMetadata<object>
+     */
     private function metadata(array $fields): ClassMetadata
     {
         $metadata = new ClassMetadata(EncryptedFieldMetadataProviderTestEntity::class);

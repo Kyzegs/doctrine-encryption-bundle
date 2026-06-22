@@ -1,35 +1,26 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Encryptors;
 
 use SpecShaper\EncryptBundle\Event\EncryptKeyEvent;
 use SpecShaper\EncryptBundle\Event\EncryptKeyEvents;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
 use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
+use SpecShaper\EncryptBundle\Exception\EncryptException;
+use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
-/**
- * Class for OpenSSL encryption.
- *
- * @author Mark Ogilvie <mark.ogilvie@ogilvieconsulting.net>
- */
-class AesCbcEncryptor implements EncryptorInterface
+/** @deprecated Prefer AesGcmEncryptor. CBC is retained for compatibility only. */
+class AesCbcEncryptor implements EncryptorInterface, KeyProviderAwareInterface, \Stringable
 {
     public const METHOD = 'aes-256-cbc';
 
-    /**
-     * Secret key stored in the .env file and passed via parameters in the Encryptor Factory.
-     */
-    private string $secretKey;
+    private ?string $secretKey = null;
+    private ?KeyProviderInterface $keyProvider = null;
 
-    private EventDispatcherInterface $dispatcher;
-
-    /**
-     * OpenSslEncryptor constructor.
-     */
-    public function __construct(EventDispatcherInterface $dispatcher)
+    public function __construct(private readonly EventDispatcherInterface $dispatcher)
     {
-        $this->dispatcher = $dispatcher;
     }
 
     public function __toString(): string
@@ -37,124 +28,107 @@ class AesCbcEncryptor implements EncryptorInterface
         return self::class.':'.self::METHOD;
     }
 
+    /** @deprecated Inject a KeyProviderInterface and call setKeyProvider() instead. */
     public function setSecretKey(string $secretKey): void
     {
         $this->secretKey = $secretKey;
     }
 
-    /**
-     * @throws \Exception
-     */
+    public function setKeyProvider(KeyProviderInterface $keyProvider): void
+    {
+        $this->keyProvider = $keyProvider;
+    }
+
     public function encrypt(?string $data, ?string $columnName = null): ?string
     {
-        // If not data return data (null)
-        if (is_null($data)) {
+        if (null === $data) {
             return null;
         }
 
-        // If the value already has the suffix <ENC> then ignore.
-        if (DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX === substr($data, -5)) {
+        if (str_ends_with($data, DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)) {
             return $data;
         }
 
-        $key = $this->getSecretKey();
+        $keyId = $this->keyProvider?->currentKeyId() ?? 'default';
+        $key = $this->validateKey($this->keyProvider?->currentKey() ?? $this->key($keyId));
+        $ivLength = openssl_cipher_iv_length(self::METHOD);
+        if ($ivLength < 1) {
+            throw new EncryptException('OpenSSL does not support AES-256-CBC.');
+        }
+        $iv = random_bytes($ivLength);
+        $ciphertext = openssl_encrypt($data, self::METHOD, $key, \OPENSSL_RAW_DATA, $iv);
 
-        // Create a cipher of the appropriate length for this method.
-        do {
-            $iv = openssl_random_pseudo_bytes(
-                openssl_cipher_iv_length(
-                    self::METHOD
-                ),
-                $innerStrong
-            );
-            // $bytes needs to be verified as well
-        } while (!$iv || !$innerStrong);
+        if (false === $ciphertext) {
+            throw new EncryptException('AES-CBC encryption failed.');
+        }
 
-        // Create the encryption.
-        $ciphertext = openssl_encrypt(
-            $data,
-            self::METHOD,
-            $key,
-            OPENSSL_RAW_DATA,
-            $iv
-        );
-
-        // Prefix the encoded text with the iv and encode it to base 64. Append the encoded suffix.
-        return base64_encode($iv.$ciphertext).DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX;
+        return CiphertextEnvelope::encode('cbc', $keyId, '', $iv.$ciphertext);
     }
 
-    /**
-     * @throws \Exception
-     */
     public function decrypt(?string $data, ?string $columnName = null): ?string
     {
-        // If the value is an object or null then ignore
-        if (is_null($data)) {
-            return null;
-        }
-
-        // If the value does not have the suffix <ENC> then ignore.
-        if (DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX !== substr($data, -5)) {
+        if (null === $data || !str_ends_with($data, DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)) {
             return $data;
         }
 
-        $data = substr($data, 0, -5);
-
-        // If the data was just <ENC> the return null;
-        if (empty($data)) {
-            return $data;
+        if (DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX === $data) {
+            return '';
         }
 
-        $key = $this->getSecretKey();
+        $envelope = CiphertextEnvelope::decode($data);
+        if (null !== $envelope) {
+            if ('cbc' !== $envelope['algorithm']) {
+                throw new EncryptException(sprintf('The CBC compatibility encryptor cannot decrypt "%s" ciphertext.', $envelope['algorithm']));
+            }
+            $payload = $envelope['payload'];
+            $key = $this->key($envelope['key_id']);
+        } else {
+            $payload = base64_decode(substr($data, 0, -strlen(DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)), true);
+            if (false === $payload) {
+                throw new EncryptException('The legacy encrypted value is not valid base64.');
+            }
+            $key = $this->key($this->keyProvider?->currentKeyId() ?? 'default');
+        }
 
-        $data = base64_decode($data);
+        $ivLength = openssl_cipher_iv_length(self::METHOD);
+        if (strlen($payload) < $ivLength + 1) {
+            throw new EncryptException('The AES-CBC ciphertext is truncated.');
+        }
 
-        $ivsize = openssl_cipher_iv_length(self::METHOD);
-        $iv = mb_substr($data, 0, $ivsize, '8bit');
-        $ciphertext = mb_substr($data, $ivsize, null, '8bit');
+        $plaintext = openssl_decrypt(substr($payload, $ivLength), self::METHOD, $key, \OPENSSL_RAW_DATA, substr($payload, 0, $ivLength));
+        if (false === $plaintext) {
+            throw new EncryptException('AES-CBC decryption failed.');
+        }
 
-        return openssl_decrypt(
-            $ciphertext,
-            self::METHOD,
-            $key,
-            OPENSSL_RAW_DATA,
-            $iv
-        );
+        return $plaintext;
     }
 
-    /**
-     * Get the secret key.
-     *
-     * Decode the parameters file base64 key.
-     * Check that the key is 256 bit.
-     *
-     * @throws \Exception
-     */
-    private function getSecretKey(): string
+    private function key(string $keyId): string
     {
-        // Throw an event to allow encryption keys to be defined during runtime.
-        $getKeyEvent = new EncryptKeyEvent();
-
-        $this->dispatcher->dispatch($getKeyEvent, EncryptKeyEvents::LOAD_KEY);
-
-        // If the event is returned with a key, then override the parameter defined key.
-        if (null !== $getKeyEvent->getKey()) {
-            $this->secretKey = $getKeyEvent->getKey();
+        if ($this->keyProvider instanceof KeyProviderInterface) {
+            return $this->validateKey($this->keyProvider->key($keyId));
         }
 
-        // If the key is still empty, then throw an exception.
-        if (empty($this->secretKey)) {
-            throw new EncryptException('The bundle specshaper\encrypt-bundle requires a parameter.yml value for "encrypt_key"
-            Use cli command "php bin/console encrypt:genkey" to create a key, or set via a listener on the EncryptKeyEvents::LOAD_KEY event');
+        if ('default' !== $keyId) {
+            throw new EncryptException(sprintf('No legacy encryption key is available for key ID "%s".', $keyId));
         }
 
-        // Decode the key
-        $key = base64_decode($this->secretKey);
+        $event = new EncryptKeyEvent();
+        $this->dispatcher->dispatch($event, EncryptKeyEvents::LOAD_KEY);
+        $encodedKey = $event->getKey() ?? $this->secretKey;
+        $key = null === $encodedKey ? false : base64_decode($encodedKey, true);
 
-        $keyLengthOctet = mb_strlen($key, '8bit');
+        if (false === $key || 32 !== strlen($key)) {
+            throw new EncryptException('The bundle requires a strictly base64-encoded 256-bit encryption key.');
+        }
 
-        if (32 !== $keyLengthOctet) {
-            throw new \Exception("Needs a 256-bit key, '".($keyLengthOctet * 8)."'bit given!");
+        return $key;
+    }
+
+    private function validateKey(string $key): string
+    {
+        if (32 !== strlen($key)) {
+            throw new EncryptException('Key providers must return a 256-bit binary encryption key.');
         }
 
         return $key;

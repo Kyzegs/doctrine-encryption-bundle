@@ -1,397 +1,210 @@
 # SpecShaper Encrypt Bundle
 
-A bundle to handle encoding and decoding of parameters using OpenSSL and Doctrine lifecycle events.
+Field-level authenticated encryption and blind indexes for Doctrine entities in Symfony applications.
 
-Features include:
-- V5 is Symfony 6.4|7.4|8.0 PHP >=8.2
-- V4 is Symfony 6.4|7.0 PHP 8.2 and beta.
-- V3 is Symfony 5.4|6.0 PHP 8.0. I'm moving my projects to symfony 7 so will not maintain after this v3.2.
-- V2 is Symfony 5 not maintained.
-- v1 is Symfony 3.4 not maintained.
-- Uses OpenSSL
-- Uses Lifecycle events
+## Requirements
 
-Features road map:
+- PHP 8.2 or newer
+- Symfony 6.4, 7.4, or 8.x
+- Doctrine ORM 2.20 or 3.x
+- OpenSSL with AES-256-GCM support
 
-- [x] Create a factory method to expand for different encryptors
-- [x] Create a twig function to decrypt encoded values
-- [x] Expand parameters to allow selection of encoding method
-- [x] Create CLI commands to encrypt and decrypt the entire database
-- [ ] Handle DateTime data types via the bundle.
+## Installation
 
-## License
-
-This bundle is under the MIT license. See the complete license in the bundle:
-
-    Resources/meta/LICENSE
-
-## About
-
-EncryptBundle has been written for the [Parolla Plugins](https://plugins.parolla.ie) and [Parolla](https://www.parolla.ie) websites
-to encode users private data. The bundle is expanded in a larger [gdpr-bundle](https://github.com/mogilvie/GdprBundle).
-
-## Reporting an issue or a feature request
-
-Issues and feature requests are tracked in the [Github issue tracker](https://github.com/mogilvie/HelpBundle/issues).
-
-When reporting a bug, it may be a good idea to reproduce it in a basic project
-built using the [Symfony Standard Edition](https://github.com/symfony/symfony-standard)
-to allow developers of the bundle to reproduce the issue by simply cloning it
-and following some steps.
-
-# Installation
-
-## Step 1: Install from package
-
-Open a command console, enter your project directory and execute the
-following command to download the latest development version of this bundle:
-
-```
-$ composer require specshaper/encrypt-bundle dev-master
+```bash
+composer require specshaper/encrypt-bundle
 ```
 
-This command requires you to have Composer installed globally, as explained
-in the [installation chapter](https://getcomposer.org/doc/00-intro.md)
-of the Composer documentation.
-
-## Step 2: Enable the bundle
-
-The receipe will create a package config file under config/packages/spec_shaper_encrypt.yaml.
-
-If required, enable the bundle by adding it to the list of registered bundles
-in the `config/bundles.php` file of your project:
+Register the bundle if Symfony Flex has not already done so:
 
 ```php
-<?php
-
+// config/bundles.php
 return [
-    ...
     SpecShaper\EncryptBundle\SpecShaperEncryptBundle::class => ['all' => true],
 ];
-
 ```
 
-## Step 2: Configure the bundle
+Generate a 256-bit key:
 
-Generate a 256-bit key using the command provided in the bundle.
-
-```
-$ bin/console encrypt:genkey
-```
- 
-Copy the key into your .env file.
-```
-###> encrypt-bundle ###
-SPEC_SHAPER_ENCRYPT_KEY= change_me!
-###< encrypt-bundle ###
+```bash
+bin/console encrypt:genkey
 ```
 
-Maker will have created a packages yaml file. The key is resolved in there.
+Store the result in a secret manager or an uncommitted environment file:
+
+```dotenv
+SPEC_SHAPER_ENCRYPT_KEY=base64-encoded-key
+SPEC_SHAPER_BLIND_INDEX_KEY=a-different-secret
+```
+
+Configure the bundle:
 
 ```yaml
-# app/config/packages/spec_shaper_encrypt.yaml
+# config/packages/spec_shaper_encrypt.yaml
 spec_shaper_encrypt:
-  encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY)%'
-  blind_index_key: '%env(SPEC_SHAPER_BLIND_INDEX_KEY)%' # Optional, defaults to encrypt_key when omitted.
-  is_disabled: false # Turn this to true to disable the encryption.
-  connections:   # Optional, define the connection name(s) for the listener
-    - 'default'
-    - 'tenant'
-  listener_class: App\EventListener\MyCustomListener # Optional to override the bundle Doctrine event listener.
-  encryptor_class: App\Encryptors\MyCustomEncryptor # Optional to override the bundle OpenSslEncryptor.
-  annotation_classes: # Optional to override the default annotation/Attribute object.
-    - App\Annotation\MyAttribute
+    encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY)%'
+    blind_index_key: '%env(SPEC_SHAPER_BLIND_INDEX_KEY)%'
+    key_id: '2026-01'
 ```
 
-You can disable encryption by setting the 'is_disabled' option to true. Decryption still continues if any values
-contain the \<ENC> suffix.
+The encryption and blind-index keys should be different. Never commit either key.
 
-You can extend the EncryptBundle default Listener and override its methods. Use the 'listener_class' option
-to point the bundle at your custom listener.
+## Encrypting fields
 
-If you want to define your own annotation/attribute, then this can be used to trigger encryption by adding the annotation 
-class name to the 'annotation_classes' option array.
-
-You can pass the class name of your own encyptor service using the optional encryptorClass option.
-
-### Unique constraints and lookups on encrypted values
-
-Encrypted values are randomized, so the same plaintext value will normally produce a different encrypted value every time.
-Do not put a useful unique constraint on the encrypted column itself. Instead, map a separate blind-index field and put the
-database unique constraint on that field.
+Use the PHP attribute on a Doctrine string field. Allow room for the versioned ciphertext envelope; `TEXT` is the least surprising choice.
 
 ```php
-<?php
-
 use Doctrine\ORM\Mapping as ORM;
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
-use SpecShaper\EncryptBundle\Annotations\Encrypted;
+use SpecShaper\EncryptBundle\Attribute\Encrypted;
 
-#[ORM\Column(type: 'string')]
+#[ORM\Column(type: 'text', nullable: true)]
 #[Encrypted]
-private string $email;
-
-#[ORM\Column(type: 'string', length: 64, unique: true, nullable: true)]
-#[BlindIndex(
-    sourceField: 'email',
-    normalizer: BlindIndex::NORMALIZE_LOWERCASE
-)]
-private ?string $emailLookupHash = null;
+private ?string $personalNumber = null;
 ```
 
-When `email` changes, the Doctrine listener encrypts the email and writes
-`hash_hmac('sha256', normalized email, blind_index_key)` to `emailLookupHash`.
+New values are written with AES-256-GCM in a versioned, authenticated envelope. The entity contains plaintext while it is in memory; Doctrine stores ciphertext. Existing unversioned AES-CBC and AES-GCM values from older bundle versions remain readable.
 
-Available normalizers are:
-
-- `BlindIndex::NORMALIZE_NONE`
-- `BlindIndex::NORMALIZE_TRIM`
-- `BlindIndex::NORMALIZE_LOWERCASE`
-- `BlindIndex::NORMALIZE_UPPERCASE`
-
-You can also inject `SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface` when you need to query by the encrypted
-value:
-
-```php
-$hash = $blindIndexHasher->hash('test@example.com', BlindIndex::NORMALIZE_LOWERCASE);
-
-$user = $userRepository->findOneBy([
-    'emailLookupHash' => $hash,
-]);
-```
-
-For best separation, configure `blind_index_key` with a secret distinct from `encrypt_key`.
-
-To build or rebuild lookup hashes for existing database rows, run:
-
-```
-$ bin/console encrypt:blind-index --manager=default
-```
-
-### Alternative EncryptKeyEvent
-The EncryptKey can be set via a dispatched event listener, which overrides any .env or param.yml defined key.
-Create a listener for the EncryptKeyEvents::LOAD_KEY event and set your encryption key at that point.
-
-## Step 3: Create the entities
-Add the Encrypted attribute class within the entity.
-
-```php
-<?php
-...
-use SpecShaper\EncryptBundle\Annotations\Encrypted;
-```
-
-Add the attribute #[Encrypted] to the properties you want encrypted.
-
-Note that the legacy annotation '@Encrypted' in the parameters is deprecated and
-will be discontinued in the next major update.
-```php
-<?php
-
-    /**
-     * A PPS number is always 7 numbers followed by either one or two letters.
-     * 
-     * @ORM\Column(type="string")
-     */
-    #[Encrypted]
-    protected string $taxNumber;
-    
-    /**
-     * True if the user is self employed.
-     * 
-     * @ORM\Column(type="string", nullable=true)
-     */
-    #[Encrypted]
-    protected ?bool $isSelfEmployed;
-    
-    /**
-     * Date of birth
-     * 
-     * @Encrypted
-     * Note that the above Encrypted property is a legacy annotation, and while
-     * it still is supported, it will be deprecated in favour of Attributes.
-     * 
-     * @ORM\Column(type="string", nullable=true)
-     */
-    protected ?String $dob;
-   
-```
-
-### XML, YAML, and PHP mapping
-
-Encryption can be kept out of the entity by setting the Doctrine field option
-`encrypted` to `true`. The listener and the `encrypt:database` command read the
-same Doctrine metadata, so this works with any mapping driver that supports
-field options.
-
-XML:
+External XML, YAML, or PHP Doctrine mappings can opt in without modifying the entity:
 
 ```xml
-<field name="taxNumber" type="string">
+<field name="personalNumber" type="text">
     <options>
         <option name="encrypted">true</option>
     </options>
 </field>
 ```
 
-YAML:
+The equivalent field option is `encrypted: true`.
+
+Encrypted scalar properties inside Doctrine embeddables are supported. Mark the embeddable property normally; bundle uses Doctrine's nested field path for encryption, decryption, change tracking, and database maintenance:
+
+```php
+#[ORM\Embeddable]
+final class ContactDetails
+{
+    #[ORM\Column(type: 'text')]
+    #[Encrypted]
+    public string $privateNote;
+}
+```
+
+## Searching encrypted values
+
+Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead:
+
+```php
+use SpecShaper\EncryptBundle\Attribute\BlindIndex;
+use SpecShaper\EncryptBundle\Attribute\Encrypted;
+
+#[ORM\Column(type: 'text')]
+#[Encrypted]
+private string $email;
+
+#[ORM\Column(type: 'string', length: 64, unique: true, nullable: true)]
+#[BlindIndex(sourceField: 'email', normalizer: BlindIndex::NORMALIZE_LOWERCASE)]
+private ?string $emailLookupHash = null;
+```
+
+Create the same hash when querying:
+
+```php
+use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
+
+$hash = $blindIndexHasher->hash($email, BlindIndex::NORMALIZE_LOWERCASE);
+$user = $repository->findOneBy(['emailLookupHash' => $hash]);
+```
+
+Available normalizers are `none`, `trim`, `lowercase`, and `uppercase`. Blind indexes reveal equality patterns; use them only for fields that genuinely need lookups.
+
+Rebuild indexes in bounded batches:
+
+```bash
+bin/console encrypt:blind-index --batch-size=500 --dry-run
+bin/console encrypt:blind-index --batch-size=500
+```
+
+## Key rotation
+
+Change the current key and key ID, then retain old keys under `decryption_keys`:
 
 ```yaml
-fields:
-  taxNumber:
-    type: string
-    options:
-      encrypted: true
+spec_shaper_encrypt:
+    encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY_2026)%'
+    key_id: '2026'
+    decryption_keys:
+        '2025': '%env(SPEC_SHAPER_ENCRYPT_KEY_2025)%'
 ```
 
-PHP:
+Back up the database, inspect the operation, and rotate in batches:
 
-```php
-$metadata->mapField([
-    'fieldName' => 'taxNumber',
-    'type' => 'string',
-    'options' => ['encrypted' => true],
-]);
+```bash
+bin/console encrypt:database rotate --dry-run
+bin/console encrypt:database rotate --batch-size=250
 ```
 
-Attributes and external mapping can be mixed during a migration. A field is
-encrypted when either its configured attribute or the mapping option is present.
+Remove a retired key only after every value using its key ID has been rotated and verified.
 
-Where encrypting a field you will need to set the column type as string.  
+## Database maintenance
 
-Encrypted attributes are also supported on properties inside Doctrine Embeddables. Add
-`#[Encrypted]` to the scalar property in the embeddable class; the owning entity
-field path will be used during encryption and decryption.
+The maintenance command supports `encrypt`, `decrypt`, and `rotate`, custom and composite scalar identifiers, quoted identifiers, transactions, batches, confirmation, and dry runs:
 
-Your getters and setters may also need to be type declared.  
-
-For example, boolean should either be return declared bool, or return a bool using a ternary method.  
-
-```php
-<?php
-    /**
-     * Get isSelfEmployed
-     *
-     * @return boolean
-     */
-    public function isSelfEmployed(): bool
-    {
-        return $this->isSelfEmployed;
-    }
-
-    /**
-     * Get isSelfEmployed
-     *
-     * @return boolean
-     */
-    public function isSelfEmployed(): bool
-    {
-        return ($this->isSelfEmployed == 1 ? true: false);
-    }
-
+```bash
+bin/console encrypt:database encrypt --dry-run
+bin/console encrypt:database decrypt --manager=tenant --batch-size=100
 ```
 
-For DateTime parameters store the date as a string, and use the getters and setters
-to convert that string.
+Association identifiers are rejected because they cannot be updated safely by the low-level command. Always take a verified backup before a write operation.
 
-You may also need to create a DataTransformer if you are using the parameter in a form
-with the DateType form type.
+## Multiple Doctrine connections
 
-## Step 4: General Use
-
-The bundle comes with an DoctrineEncryptListener. This listener catches the doctrine events
-onLoad, onFlush and postFlush.
-
-The onLoad event listener will decrypt your entity parameter at loading. This means that your forms
-and form fields will already be decrypted.
-
-The onFlush and postFlush event listeners will check if encryption is enabled, and encrypt the data
-before entry to the database.
-
-So, in normal CRUD operation you do not need to do anything in the controller for encrypting or decrypting
-the data.
-
-## Step 5: Decrypt in services and controllers
-
-You can of course inject the EncryptorInterface service any time into classes
-either by using autowiring or defining the injection in your service definitions.
-
-```php
-<?php
-    use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-    ...
-    /**
-     * @var SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-     */
-    private $encryptor;
-    ...
-    
-    // Inject the Encryptor from the service container at class construction
-    public function __construct(EncryptorInterface $encryptor)
-    {
-        $this->encryptor = $encryptor;
-    }
-    
-    // Inject the Encryptor in controller actions.
-    public function editAction(EncryptorInterface $encryptor)
-    {
-        ...
-        // An example encrypted value, you would get this from your database query.
-        $encryptedValue = "3DDOXwqZAEEDPJDK8/LI4wDsftqaNCN2kkyt8+QWr8E=<ENC>";
-        
-        $decrypted = $encryptor->decrypt($encryptedValue);
-        ...
-    }
-
-
+```yaml
+spec_shaper_encrypt:
+    encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY)%'
+    connections: ['default', 'tenant']
 ```
 
-Or you can dispatch the EncryptEvent.
+## Optional Twig filter
 
-```php
-<?php
-    ...
-    use SpecShaper\EncryptBundle\Event\EncryptEvent;
-    use SpecShaper\EncryptBundle\Event\EncryptEvents;
-    use Symfony\Component\EventDispatcher\EventDispatcherInterface;
-    ...
-    
-    public function indexAction(EventDispatcherInterface $dispatcher)
-    {
-        ...
-        // An example encrypted value, you would get this from your database query.
-        $event = new EncryptEvent("3DDOXwqZAEEDPJDK8/LI4wDsftqaNCN2kkyt8+QWr8E=<ENC>");
+Install Twig and leave `enable_twig` enabled to expose `value|decrypt`:
 
-        $dispatcher->dispatch(EncryptEvents::DECRYPT, $event);
-        
-        $decrypted = $event->getValue();
-    }
+```bash
+composer require symfony/twig-bundle
 ```
 
-## Step 5: Decrypt in templates
+Decrypting in templates increases the number of places where plaintext exists. Prefer decrypting only at the application boundary that needs it.
 
-If you query a repository using a select with an array result 
-then the doctrine onLoad event listener will not decrypt any encrypted
-values.
+## Custom integrations
 
-In this case, use the twig filter to decrypt your value when rendering.
+`KeyProviderInterface` is the extension point for Vault, KMS, HSM, or another secret source. It returns binary 32-byte keys and supports lookup by ciphertext key ID. Register the implementation as a service and configure it directly:
 
-```
-{{ employee.bankAccountNumber | decrypt }}
-```
-
-# Commands
-
-You have already seen the command to generate a encryption key:
-```
-$ bin/console encrypt:genkey
+```yaml
+spec_shaper_encrypt:
+    key_provider_service: 'App\\Encryption\\KmsKeyProvider'
+    blind_index_key: '%env(SPEC_SHAPER_BLIND_INDEX_KEY)%'
 ```
 
-You can decrypt/encrypt the entire database using the following
-```
-$ bin/console encrypt:database decrypt connection
+Likewise, `encryptor_service` accepts any registered `EncryptorInterface` service with arbitrary injected dependencies. `encryptor_class` remains available as a deprecated compatibility path for classes using the historical event-dispatcher constructor.
+
+## Security notes
+
+- Encryption does not replace access control, TLS, backups, audit logging, or database hardening.
+- Losing an encryption key permanently loses the corresponding data.
+- Application compromise can expose plaintext and keys while the process is running.
+- Blind indexes permit equality analysis and should use a separate high-entropy secret.
+- Test restoration and rotation on a copy of production data before operating on production.
+
+See [UPGRADE.md](UPGRADE.md) before upgrading an existing installation and [SECURITY.md](SECURITY.md) for vulnerability reporting.
+
+## Development
+
+```bash
+composer test
+composer analyse
+composer cs:check
+composer rector:check
+composer audit
 ```
 
-The requried argument should be decrypt or encrypt.
+## License
 
-There is an option to define the database connection if you employ multiple connections in your application.
+MIT. See [LICENSE](LICENSE).

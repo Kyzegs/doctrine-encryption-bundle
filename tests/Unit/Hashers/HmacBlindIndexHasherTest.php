@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Tests\Unit\Hashers;
 
 use PHPUnit\Framework\TestCase;

@@ -8,7 +8,6 @@ use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\UnitOfWork;
 use Doctrine\Persistence\Mapping\RuntimeReflectionService;
-use Doctrine\Persistence\ObjectManager;
 use PHPUnit\Framework\TestCase;
 use SpecShaper\EncryptBundle\Annotations\Encrypted;
 use SpecShaper\EncryptBundle\BlindIndex\BlindIndexMetadataProvider;
@@ -38,7 +37,7 @@ class DoctrineEncryptListenerTest extends TestCase
         $encryptor = new RecordingEncryptor();
         $listener = $this->createListener($encryptor);
 
-        self::assertTrue($listener->process($objectManager, $entity, true, false));
+        self::assertTrue($listener->process($objectManager, $entity, true));
         self::assertSame('encrypted[address.secret]:plain-secret', $entity->address->secret);
         self::assertSame([['plain-secret', 'address.secret']], $encryptor->encryptCalls);
     }
@@ -58,11 +57,12 @@ class DoctrineEncryptListenerTest extends TestCase
         $encryptor = new RecordingEncryptor();
         $listener = $this->createListener($encryptor);
 
-        self::assertTrue($listener->process($objectManager, $entity, false, false));
+        self::assertTrue($listener->process($objectManager, $entity, false));
         self::assertSame('plain-secret', $entity->address->secret);
         self::assertSame([['encrypted[address.secret]:plain-secret', 'address.secret']], $encryptor->decryptCalls);
     }
 
+    /** @param ClassMetadata<object> $meta */
     private function createObjectManager(ClassMetadata $meta, UnitOfWork $unitOfWork): EntityManagerInterface
     {
         $objectManager = $this->createMock(EntityManagerInterface::class);
@@ -88,6 +88,7 @@ class DoctrineEncryptListenerTest extends TestCase
         );
     }
 
+    /** @return ClassMetadata<object> */
     private function createEntityMetadata(): ClassMetadata
     {
         $reflectionService = new RuntimeReflectionService();
@@ -115,16 +116,18 @@ class DoctrineEncryptListenerTest extends TestCase
 
 class TestableDoctrineEncryptListener extends DoctrineEncryptListener
 {
-    public function process(ObjectManager $objectManager, object $entity, bool $isEncryptOperation, bool $isInsert): bool
+    public function process(EntityManagerInterface $objectManager, object $entity, bool $isEncryptOperation): bool
     {
-        return $this->processFields($objectManager, $entity, $isEncryptOperation, $isInsert);
+        return $this->processFields($objectManager, $entity, $isEncryptOperation);
     }
 }
 
 class RecordingEncryptor implements EncryptorInterface
 {
+    /** @var list<array{string|null, string|null}> */
     public array $encryptCalls = [];
 
+    /** @var list<array{string|null, string|null}> */
     public array $decryptCalls = [];
 
     public function setSecretKey(string $key): void
@@ -148,7 +151,7 @@ class RecordingEncryptor implements EncryptorInterface
 
 class EntityWithEncryptedEmbeddable
 {
-    public function __construct(public ?EncryptedAddress $address)
+    public function __construct(public EncryptedAddress $address)
     {
     }
 }
@@ -157,7 +160,7 @@ class EncryptedAddress
 {
     public function __construct(
         #[Encrypted]
-        public ?string $secret
+        public ?string $secret,
     ) {
     }
 }

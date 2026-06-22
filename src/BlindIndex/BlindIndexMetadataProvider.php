@@ -1,10 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\BlindIndex;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ObjectManager;
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
+use SpecShaper\EncryptBundle\Attribute\BlindIndex;
 use SpecShaper\EncryptBundle\Exception\EncryptException;
 
 final class BlindIndexMetadataProvider
@@ -15,13 +17,13 @@ final class BlindIndexMetadataProvider
     private array $cache = [];
 
     /**
-     * @return array<string, array<string, BlindIndexField>>
+     * @return array<class-string, array<string, BlindIndexField>>
      */
     public function getAllForObjectManager(ObjectManager $objectManager): array
     {
         $blindIndexFields = [];
 
-        /** @var ClassMetadata[] $metadata */
+        /** @var list<ClassMetadata<object>> $metadata */
         $metadata = $objectManager->getMetadataFactory()->getAllMetadata();
 
         foreach ($metadata as $classMeta) {
@@ -31,7 +33,7 @@ final class BlindIndexMetadataProvider
 
             $fields = $this->getForClassMetadata($classMeta);
 
-            if (!empty($fields)) {
+            if ([] !== $fields) {
                 $blindIndexFields[$classMeta->getName()] = $fields;
             }
         }
@@ -44,13 +46,15 @@ final class BlindIndexMetadataProvider
      */
     public function getForEntity(ObjectManager $objectManager, object $entity): array
     {
-        /** @var ClassMetadata $classMeta */
-        $classMeta = $objectManager->getClassMetadata(get_class($entity));
+        /** @var ClassMetadata<object> $classMeta */
+        $classMeta = $objectManager->getClassMetadata($entity::class);
 
         return $this->getForClassMetadata($classMeta);
     }
 
     /**
+     * @param ClassMetadata<object> $classMeta
+     *
      * @return array<string, BlindIndexField>
      */
     public function getForClassMetadata(ClassMetadata $classMeta): array
@@ -62,10 +66,14 @@ final class BlindIndexMetadataProvider
         }
 
         $reflectionClass = new \ReflectionClass($className);
+        $properties = [];
+        foreach ($reflectionClass->getProperties() as $property) {
+            $properties[$property->getName()] = $property;
+        }
         $blindIndexFields = [];
 
         foreach ($reflectionClass->getProperties() as $refProperty) {
-            foreach ($refProperty->getAttributes(BlindIndex::class) as $refAttribute) {
+            foreach ($refProperty->getAttributes(BlindIndex::class, \ReflectionAttribute::IS_INSTANCEOF) as $refAttribute) {
                 /** @var BlindIndex $attribute */
                 $attribute = $refAttribute->newInstance();
                 $field = $refProperty->getName();
@@ -81,9 +89,9 @@ final class BlindIndexMetadataProvider
 
                 $blindIndexFields[$field] = new BlindIndexField(
                     $field,
-                    $classMeta->getReflectionProperty($field),
+                    $properties[$field],
                     $sourceField,
-                    $classMeta->getReflectionProperty($sourceField),
+                    $properties[$sourceField],
                     $attribute->getNormalizer()
                 );
             }

@@ -1,38 +1,24 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\EventListener;
 
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use SpecShaper\EncryptBundle\Event\EncryptEventInterface;
-use SpecShaper\EncryptBundle\Event\EncryptEvents;
-use Doctrine\Bundle\DoctrineBundle\Attribute\AsDoctrineListener;
 
 /**
  * Doctrine event listener which encrypts/decrypts entities.
  */
-#[AsDoctrineListener(event: EncryptEvents::ENCRYPT)]
-#[AsDoctrineListener(event: EncryptEvents::DECRYPT)]
-class EncryptEventListener
+final readonly class EncryptEventListener
 {
     /**
      * Encryptor created by the factory service.
      */
-    protected EncryptorInterface $encryptor;
-
-    /**
-     * Store if the encryption is enabled or disabled in config.
-     */
-    private bool $isDisabled;
-
-    /**
-     * EncryptEventListener constructor.
-     *
-     * @param $isDisabled
-     */
-    public function __construct(EncryptorInterface $encryptor, bool $isDisabled)
-    {
-        $this->encryptor = $encryptor;
-        $this->isDisabled = $isDisabled;
+    public function __construct(
+        private EncryptorInterface $encryptor,
+        private bool $isDisabled,
+    ) {
     }
 
     /**
@@ -42,7 +28,7 @@ class EncryptEventListener
     {
         return $this->encryptor;
     }
-    
+
     /**
      * Use an Encrypt even to encrypt a value.
      */

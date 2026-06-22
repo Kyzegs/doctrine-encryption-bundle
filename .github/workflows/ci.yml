@@ -2,49 +2,79 @@ name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
+
+permissions:
+  contents: read
 
 jobs:
-  test:
-    name: PHP ${{ matrix.php }} - Symfony ${{ matrix.symfony }}
+  compatibility:
+    name: PHP ${{ matrix.php }} / Symfony ${{ matrix.symfony }} / ORM ${{ matrix.orm }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        php:
-          - 8.2
-          - 8.3
-          - 8.4
-        symfony:
-          - 6.4.*
-          - 7.4.*
-          - 8.0.*
-        exclude:
-          # Symfony 8.0 requires PHP 8.4+
+        include:
           - php: '8.2'
-            symfony: '8.0.*'
+            symfony: '6.4.*'
+            orm: '^2.20'
+            doctrine_bundle: '^2.12'
+            composer_flags: '--prefer-lowest'
           - php: '8.3'
+            symfony: '7.4.*'
+            orm: '^3.2'
+            doctrine_bundle: '^2.18'
+            composer_flags: ''
+          - php: '8.4'
             symfony: '8.0.*'
+            orm: '^3.2'
+            doctrine_bundle: '^2.18'
+            composer_flags: ''
+          - php: '8.5'
+            symfony: '8.0.*'
+            orm: '^3.6'
+            doctrine_bundle: '^2.18'
+            composer_flags: ''
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup PHP and install Symfony Flex globally
-        uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
           coverage: none
-          extensions: mbstring, openssl, sodium
+          extensions: mbstring, openssl, pdo_sqlite
           tools: flex
+
+      - name: Select dependency versions
+        run: composer require --no-update "doctrine/orm:${{ matrix.orm }}" "doctrine/doctrine-bundle:${{ matrix.doctrine_bundle }}"
 
       - name: Install dependencies
         env:
           SYMFONY_REQUIRE: ${{ matrix.symfony }}
-        run: composer update --prefer-dist --no-progress --no-interaction
+        run: composer update --prefer-dist --no-progress --no-interaction ${{ matrix.composer_flags }}
 
-      - name: Run tests
-        run: vendor/bin/phpunit
+      - run: composer validate --strict
+      - run: composer test
+
+  quality:
+    name: Quality and security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          coverage: pcov
+          extensions: mbstring, openssl, pdo_sqlite
+
+      - run: composer update --prefer-dist --no-progress --no-interaction
+      - run: composer validate --strict
+      - run: composer audit
+      - run: composer analyse
+      - run: composer cs:check
+      - run: composer rector:check
+      - run: vendor/bin/phpunit --coverage-text

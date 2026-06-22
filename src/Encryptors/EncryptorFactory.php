@@ -1,33 +1,52 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Encryptors;
 
+use SpecShaper\EncryptBundle\Exception\EncryptException;
+use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
+use SpecShaper\EncryptBundle\Key\StaticKeyProvider;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
-class EncryptorFactory
+final readonly class EncryptorFactory
 {
-    public const SUPPORTED_EXTENSION_OPENSSL = AesCbcEncryptor::class;
+    public const SUPPORTED_EXTENSION_OPENSSL = AesGcmEncryptor::class;
 
-    private EventDispatcherInterface $dispatcher;
-
-    public function __construct(EventDispatcherInterface $dispatcher)
-    {
-        $this->dispatcher = $dispatcher;
+    public function __construct(
+        private EventDispatcherInterface $dispatcher,
+        private ?KeyProviderInterface $keyProvider = null,
+    ) {
     }
 
     /**
      * Create service will return the desired encryption service.
      *
-     * @param string      $encryptKey     256-bit encryption key
-     * @param string      $defaultAssociatedData     A fallback string used for AES-GBC-256 encryption.
-     * @param string|null $encryptorClass the desired encryptor, defaults to OpenSSL, but can be overridden by passing a classname
+     * @param string      $encryptKey            256-bit encryption key
+     * @param string      $defaultAssociatedData a fallback string used for AES-GBC-256 encryption
+     * @param string|null $encryptorClass        the desired encryptor, defaults to OpenSSL, but can be overridden by passing a classname
      */
-    public function createService(string $encryptKey, ?string $defaultAssociatedData = null, ?string $encryptorClass = self::SUPPORTED_EXTENSION_OPENSSL): EncryptorInterface
+    public function createService(?string $encryptKey = null, ?string $defaultAssociatedData = null, ?string $encryptorClass = self::SUPPORTED_EXTENSION_OPENSSL): EncryptorInterface
     {
         $encryptor = new $encryptorClass($this->dispatcher);
-        $encryptor->setSecretKey($encryptKey);
+        if (!$encryptor instanceof EncryptorInterface) {
+            throw new EncryptException(sprintf('Configured encryptor "%s" must implement %s.', $encryptorClass, EncryptorInterface::class));
+        }
 
-        if(method_exists($encryptorClass, 'setDefaultAssociatedData')){
+        $keyProvider = $this->keyProvider;
+        if (!$keyProvider instanceof KeyProviderInterface && null !== $encryptKey) {
+            $keyProvider = new StaticKeyProvider($encryptKey);
+        }
+
+        if ($encryptor instanceof KeyProviderAwareInterface && $keyProvider instanceof KeyProviderInterface) {
+            $encryptor->setKeyProvider($keyProvider);
+        } elseif (null !== $encryptKey) {
+            $encryptor->setSecretKey($encryptKey);
+        } else {
+            throw new EncryptException(sprintf('Configured encryptor "%s" does not support key providers.', $encryptorClass));
+        }
+
+        if (method_exists($encryptor, 'setDefaultAssociatedData')) {
             $encryptor->setDefaultAssociatedData($defaultAssociatedData);
         }
 

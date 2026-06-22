@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Command;
 
 use Symfony\Component\Console\Attribute\AsCommand;
@@ -21,18 +23,11 @@ class GenKeyCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        do {
-            $encryption_key_256bit = openssl_random_pseudo_bytes(
-                32,
-                $innerStrong
-            );
-            // $bytes needs to be verified as well
-        } while (!$encryption_key_256bit || !$innerStrong);
-        $encryption_key_256bit = base64_encode($encryption_key_256bit);
+        $encryption_key_256bit = base64_encode(random_bytes(32));
 
         $io = new SymfonyStyle($input, $output);
         $io->title('Generated Key');
-        $io->success('Key is: ' . $encryption_key_256bit);
+        $io->success('Key is: '.$encryption_key_256bit);
 
         return Command::SUCCESS;
     }

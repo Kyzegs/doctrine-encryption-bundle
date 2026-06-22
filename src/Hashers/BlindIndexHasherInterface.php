@@ -1,8 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Hashers;
 
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
+use SpecShaper\EncryptBundle\Attribute\BlindIndex;
 
 interface BlindIndexHasherInterface
 {

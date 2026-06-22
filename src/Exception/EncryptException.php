@@ -1,39 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Exception;
 
-/**
- * Encrypt Exception.
- **
- * @author      Mark Ogilvie <mark.ogilvie@specshaper.com>
- */
-class EncryptException extends \Exception
+class EncryptException extends \RuntimeException
 {
-    /**
-     * The value trying to be encrypted.
-     */
-    private string $value;
-
-    /**
-     * Constructor.
-     *
-     * Typically, provide a custom message key when throwing the exception.
-     * Set the text and html of the exception in the messages' translation file.
-     *
-     * @param string|null $message Optional message
-     * @param $value
-     */
-    public function __construct(?string $message = null, $value = null)
-    {
-        if (null === $message) {
-            $message = 'sseb.exception.encryptionException';
-        }
-
-        if (null !== $value) {
-            $this->value = $value;
-        }
-
-        parent::__construct($message);
+    public function __construct(
+        ?string $message = null,
+        private mixed $value = null,
+        int $code = 0,
+        ?\Throwable $previous = null,
+    ) {
+        parent::__construct($message ?? 'sseb.exception.encryptionException', $code, $previous);
     }
 
     public function getValue(): mixed
@@ -41,7 +20,7 @@ class EncryptException extends \Exception
         return $this->value;
     }
 
-    public function setValue(mixed $value): EncryptException
+    public function setValue(mixed $value): self
     {
         $this->value = $value;
 

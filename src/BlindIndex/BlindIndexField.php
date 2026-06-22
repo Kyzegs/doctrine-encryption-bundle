@@ -1,17 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\BlindIndex;
 
-use ReflectionProperty;
-
-final class BlindIndexField
+final readonly class BlindIndexField
 {
     public function __construct(
-        private readonly string $field,
-        private readonly ReflectionProperty $property,
-        private readonly string $sourceField,
-        private readonly ReflectionProperty $sourceProperty,
-        private readonly string $normalizer
+        private string $field,
+        private \ReflectionProperty $property,
+        private string $sourceField,
+        private \ReflectionProperty $sourceProperty,
+        private string $normalizer,
     ) {
     }
 
@@ -20,7 +20,7 @@ final class BlindIndexField
         return $this->field;
     }
 
-    public function getProperty(): ReflectionProperty
+    public function getProperty(): \ReflectionProperty
     {
         return $this->property;
     }
@@ -30,7 +30,7 @@ final class BlindIndexField
         return $this->sourceField;
     }
 
-    public function getSourceProperty(): ReflectionProperty
+    public function getSourceProperty(): \ReflectionProperty
     {
         return $this->sourceProperty;
     }

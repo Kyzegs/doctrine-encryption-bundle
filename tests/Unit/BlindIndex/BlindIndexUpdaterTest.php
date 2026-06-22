@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Tests\Unit\BlindIndex;
 
 use PHPUnit\Framework\TestCase;

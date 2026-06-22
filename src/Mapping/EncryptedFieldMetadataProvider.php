@@ -1,42 +1,52 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Mapping;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
-use ReflectionProperty;
 
-final class EncryptedFieldMetadataProvider
+final readonly class EncryptedFieldMetadataProvider
 {
     public const OPTION_NAME = 'encrypted';
 
-    /**
-     * @param list<class-string> $attributeClasses
-     */
-    public function __construct(private readonly array $attributeClasses)
+    /** @param list<class-string> $attributeClasses */
+    public function __construct(private array $attributeClasses)
     {
     }
 
     /**
-     * @return array<string, ReflectionProperty>
+     * @param ClassMetadata<object> $classMetadata
+     *
+     * @return array<string, EncryptedField>
      */
     public function getForClassMetadata(ClassMetadata $classMetadata): array
     {
         $encryptedFields = [];
 
         foreach ($classMetadata->getFieldNames() as $fieldName) {
-            $property = $classMetadata->getReflectionProperty($fieldName);
             $mapping = $classMetadata->getFieldMapping($fieldName);
             $attributeProperty = $this->getOriginalProperty($classMetadata, $fieldName, $mapping);
 
-            if (null !== $property && ($this->hasEncryptedAttribute($attributeProperty) || $this->hasEncryptedMappingOption($mapping))) {
-                $encryptedFields[$fieldName] = $property;
+            if (!$this->hasEncryptedAttribute($attributeProperty) && !$this->hasEncryptedMappingOption($mapping)) {
+                continue;
             }
+
+            $accessor = $this->getAccessor($classMetadata, $fieldName);
+            if (null === $accessor || !is_callable([$accessor, 'getValue']) || !is_callable([$accessor, 'setValue'])) {
+                continue;
+            }
+
+            $encryptedFields[$fieldName] = new EncryptedField(
+                $accessor->getValue(...),
+                $accessor->setValue(...),
+            );
         }
 
         return $encryptedFields;
     }
 
-    public function hasEncryptedAttribute(ReflectionProperty $property): bool
+    public function hasEncryptedAttribute(\ReflectionProperty $property): bool
     {
         foreach ($property->getAttributes() as $attribute) {
             if (in_array($attribute->getName(), $this->attributeClasses, true)) {
@@ -47,12 +57,35 @@ final class EncryptedFieldMetadataProvider
         return false;
     }
 
-    private function getOriginalProperty(ClassMetadata $classMetadata, string $fieldName, mixed $mapping): ReflectionProperty
+    /** @param ClassMetadata<object> $classMetadata */
+    private function getOriginalProperty(ClassMetadata $classMetadata, string $fieldName, mixed $mapping): \ReflectionProperty
     {
         $originalClass = $this->getMappingValue($mapping, 'originalClass') ?? $classMetadata->getName();
         $originalField = $this->getMappingValue($mapping, 'originalField') ?? $fieldName;
 
-        return new ReflectionProperty($originalClass, $originalField);
+        return new \ReflectionProperty($originalClass, $originalField);
+    }
+
+    /** @param ClassMetadata<object> $classMetadata */
+    private function getAccessor(ClassMetadata $classMetadata, string $fieldName): ?object
+    {
+        $accessor = $this->getModernAccessor($classMetadata, $fieldName);
+        if (null !== $accessor) {
+            return $accessor;
+        }
+
+        return $classMetadata->getReflectionProperty($fieldName);
+    }
+
+    private function getModernAccessor(object $classMetadata, string $fieldName): ?object
+    {
+        if (!method_exists($classMetadata, 'getPropertyAccessor')) {
+            return null;
+        }
+
+        $accessor = $classMetadata->getPropertyAccessor($fieldName);
+
+        return is_object($accessor) ? $accessor : null;
     }
 
     private function getMappingValue(mixed $mapping, string $key): mixed

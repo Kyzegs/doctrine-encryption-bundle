@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\DependencyInjection;
 
-use SpecShaper\EncryptBundle\Annotations\Encrypted;
-use SpecShaper\EncryptBundle\Encryptors\AesCbcEncryptor;
+use SpecShaper\EncryptBundle\Annotations\Encrypted as LegacyEncrypted;
+use SpecShaper\EncryptBundle\Attribute\Encrypted;
+use SpecShaper\EncryptBundle\Encryptors\AesGcmEncryptor;
+use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListener;
+use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
+use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
@@ -13,23 +19,47 @@ use Symfony\Component\Config\Definition\ConfigurationInterface;
  *
  * To learn more see {@link http://symfony.com/doc/current/cookbook/bundles/configuration.html}
  */
-class Configuration implements ConfigurationInterface
+final class Configuration implements ConfigurationInterface
 {
     public function getConfigTreeBuilder(): TreeBuilder
     {
         $treeBuilder = new TreeBuilder('spec_shaper_encrypt');
 
-        $rootNode = $treeBuilder->getRootNode();
+        self::configure($treeBuilder->getRootNode());
 
+        return $treeBuilder;
+    }
+
+    public static function configure(ArrayNodeDefinition $rootNode): void
+    {
         $rootNode
             ->children()
-                ->scalarNode('encrypt_key')->end()
+                ->scalarNode('encrypt_key')->defaultNull()->end()
+                ->scalarNode('key_provider_service')->defaultNull()->end()
+                ->scalarNode('key_id')->defaultValue('default')->cannotBeEmpty()->end()
+                ->arrayNode('decryption_keys')
+                    ->useAttributeAsKey('id')
+                    ->scalarPrototype()->cannotBeEmpty()->end()
+                    ->defaultValue([])
+                ->end()
                 ->scalarNode('blind_index_key')->defaultValue(null)->end()
                 ->scalarNode('default_associated_data')->defaultValue(null)->end()
-                ->scalarNode('method')->defaultValue('OpenSSL')->end()
-                ->scalarNode('listener_class')->defaultValue(DoctrineEncryptListener::class)->end()
-                ->scalarNode('encryptor_class')->defaultValue(AesCbcEncryptor::class)->end()
-                ->scalarNode('is_disabled')->defaultValue(false)->end()
+                ->scalarNode('listener_class')
+                    ->defaultValue(DoctrineEncryptListener::class)
+                    ->validate()
+                        ->ifTrue(static fn (mixed $class): bool => !is_string($class) || !is_a($class, DoctrineEncryptListenerInterface::class, true))
+                        ->thenInvalid('The listener class must implement '.DoctrineEncryptListenerInterface::class.'.')
+                    ->end()
+                ->end()
+                ->scalarNode('encryptor_class')
+                    ->defaultValue(AesGcmEncryptor::class)
+                    ->validate()
+                        ->ifTrue(static fn (mixed $class): bool => !is_string($class) || !is_a($class, EncryptorInterface::class, true))
+                        ->thenInvalid('The encryptor class must implement '.EncryptorInterface::class.'.')
+                    ->end()
+                ->end()
+                ->scalarNode('encryptor_service')->defaultNull()->end()
+                ->booleanNode('is_disabled')->defaultFalse()->end()
                 ->arrayNode('connections')
                 ->treatNullLike([])
                 ->prototype('scalar')->end()
@@ -42,6 +72,7 @@ class Configuration implements ConfigurationInterface
                 ->prototype('scalar')->end()
                 ->defaultValue([
                     Encrypted::class,
+                    LegacyEncrypted::class,
                 ])
                 ->end()
                 ->booleanNode('enable_twig')
@@ -49,8 +80,14 @@ class Configuration implements ConfigurationInterface
                 ->info('Enable or disable Twig functionality')
                 ->end()
             ->end()
+            ->validate()
+                ->ifTrue(static fn (array $config): bool => empty($config['encrypt_key']) && empty($config['key_provider_service']))
+                ->thenInvalid('Configure either "encrypt_key" or "key_provider_service".')
+            ->end()
+            ->validate()
+                ->ifTrue(static fn (array $config): bool => !empty($config['key_provider_service']) && empty($config['blind_index_key']))
+                ->thenInvalid('A distinct "blind_index_key" is required when using a custom key provider.')
+            ->end()
         ;
-
-        return $treeBuilder;
     }
 }

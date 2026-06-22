@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Tests\Unit\Command;
 
 use PHPUnit\Framework\TestCase;
@@ -13,14 +15,10 @@ class GenKeyCommandTest extends TestCase
     /**
      * Test that an encryption key of 43 characters (ending with =) is created.
      */
-    public function testExecute()
+    public function testExecute(): void
     {
         $application = new Application();
-        if (method_exists($application, 'addCommand')) {
-            $application->addCommand(new GenKeyCommand());
-        } else {
-            $application->add(new GenKeyCommand());
-        }
+        $application->addCommand(new GenKeyCommand());
 
         $command = $application->find('encrypt:genkey');
 

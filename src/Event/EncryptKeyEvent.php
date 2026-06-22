@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Event;
 
 use Symfony\Contracts\EventDispatcher\Event;
@@ -16,7 +18,7 @@ class EncryptKeyEvent extends Event
         return $this->key;
     }
 
-    public function setKey(?string $key): EncryptKeyEvent
+    public function setKey(?string $key): self
     {
         $this->key = $key;
 

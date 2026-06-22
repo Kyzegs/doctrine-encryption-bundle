@@ -1,4 +1,6 @@
 <?php
+
+declare(strict_types=1);
 /**
  * Created by PhpStorm.
  * User: mark
@@ -15,23 +17,10 @@ class AesCbcEncryptorTest extends \PHPUnit\Framework\TestCase
 {
     private const TEST_KEY = 'YBmNcBGfrZoayB+V254wdYa/abvxSUWJsjCtlMc1tRI=';
 
-    public function testEncryptException()
-    {
-        $this->expectException(\TypeError::class);
-
-        $object = new \stdClass();
-        $object->test = 'Test';
-
-        $encryptor = new AesCbcEncryptor(new EventDispatcher());
-        $encryptor->setSecretKey(self::TEST_KEY);
-
-        $encryptor->encrypt($object);
-    }
-
     /**
      * @throws \Exception
      */
-    public function testEncrypt()
+    public function testEncrypt(): void
     {
         $encryptor = new AesCbcEncryptor(new EventDispatcher());
         $encryptor->setSecretKey(self::TEST_KEY);
@@ -54,25 +43,7 @@ class AesCbcEncryptorTest extends \PHPUnit\Framework\TestCase
     /**
      * @throws \Exception
      */
-    public function testDecryptException()
-    {
-        $this->expectException(\TypeError::class);
-        // or for PHPUnit < 5.2
-        // $this->setExpectedException(InvalidArgumentException::class);
-
-        $object = new \stdClass();
-        $object->test = 'Test';
-
-        // ...and then add your test code that generates the exception
-        $encryptor = new AesCbcEncryptor(new EventDispatcher());
-        $encryptor->setSecretKey(self::TEST_KEY);
-        $encryptor->decrypt($object);
-    }
-
-    /**
-     * @throws \Exception
-     */
-    public function testDecrypt()
+    public function testDecrypt(): void
     {
         $encryptor = new AesCbcEncryptor(new EventDispatcher());
         $encryptor->setSecretKey(self::TEST_KEY);

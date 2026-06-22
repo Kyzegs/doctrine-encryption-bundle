@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Encryptors;
 
 /**
@@ -7,6 +9,7 @@ namespace SpecShaper\EncryptBundle\Encryptors;
  */
 interface EncryptorInterface
 {
+    /** @deprecated Encryption keys should be supplied through KeyProviderInterface. */
     public function setSecretKey(string $key): void;
 
     /**

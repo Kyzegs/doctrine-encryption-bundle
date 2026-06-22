@@ -1,15 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Annotations;
 
-use Attribute;
-use Doctrine\Common\Annotations\Annotation;
-
-/**
- * @Annotation
- * @Target("ALL")
- */
-#[\Attribute(Attribute::TARGET_PROPERTY)]
-final class Encrypted
+/** @deprecated Use SpecShaper\EncryptBundle\Attribute\Encrypted. */
+#[\Attribute(\Attribute::TARGET_PROPERTY)]
+class Encrypted extends \SpecShaper\EncryptBundle\Attribute\Encrypted
 {
 }

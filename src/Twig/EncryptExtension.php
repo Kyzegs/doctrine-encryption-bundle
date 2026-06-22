@@ -1,41 +1,27 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Twig;
 
 use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 
-
-class EncryptExtension extends AbstractExtension
+final class EncryptExtension extends AbstractExtension
 {
-    /**
-     * @var EncryptorInterface
-     */
-    private $encryptor;
-
-    public function __construct(EncryptorInterface $encryptor)
+    public function __construct(private readonly EncryptorInterface $encryptor)
     {
-        $this->encryptor = $encryptor;
     }
 
-    /**
-     * @return TwigFilter[]
-     */
+    /** @return list<TwigFilter> */
     public function getFilters(): array
     {
-        return array(
-            new TwigFilter('decrypt', array($this, 'decryptFilter'))
-        );
+        return [new TwigFilter('decrypt', $this->decryptFilter(...))];
     }
 
-    public function decryptFilter($data)
+    public function decryptFilter(?string $data): ?string
     {
-        return  $this->encryptor->decrypt($data);
-    }
-
-    public function getName()
-    {
-        return 'spec_shaper_encrypt_extension';
+        return $this->encryptor->decrypt($data);
     }
 }

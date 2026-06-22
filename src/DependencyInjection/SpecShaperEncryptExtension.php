@@ -1,30 +1,41 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\DependencyInjection;
 
+use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
 use SpecShaper\EncryptBundle\Event\EncryptEvents;
 use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListener;
+use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
 use SpecShaper\EncryptBundle\EventListener\EncryptEventListener;
+use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Extension\Extension;
-use Symfony\Component\DependencyInjection\Loader;
+use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
 
 /**
  * This is the class that loads and manages your bundle configuration.
  *
  * @see http://symfony.com/doc/current/cookbook/bundles/extension.html
  */
-class SpecShaperEncryptExtension extends Extension
+final class SpecShaperEncryptExtension extends Extension
 {
     public function load(array $configs, ContainerBuilder $container): void
     {
         $configuration = new Configuration();
         $config = $this->processConfiguration($configuration, $configs);
 
-        $loader = new Loader\YamlFileLoader($container, new FileLocator(__DIR__.'/../../config'));
-        $loader->load('services.yaml');
+        self::loadProcessedConfig($config, $container);
+    }
+
+    /** @param array<string, mixed> $config */
+    public static function loadProcessedConfig(array $config, ContainerBuilder $container): void
+    {
+        $loader = new PhpFileLoader($container, new FileLocator(__DIR__.'/../../config'));
+        $loader->load('services.php');
 
         if ($container->hasParameter('encrypt_key')) {
             trigger_deprecation('SpecShaperEncryptBundle', 'v3.0.2', 'storing Specshaper Encrypt Key in parameters is deprecated. Move to Config/Packages/spec_shaper_encrypt.yaml');
@@ -35,14 +46,25 @@ class SpecShaperEncryptExtension extends Extension
 
         $blindIndexKey = $config['blind_index_key'] ?? $encryptKey;
 
-        $container->setParameter($this->getAlias().'.encrypt_key', $encryptKey);
-        $container->setParameter($this->getAlias().'.blind_index_key', $blindIndexKey);
-        $container->setParameter($this->getAlias().'.default_associated_data', $config['default_associated_data']);
-        $container->setParameter($this->getAlias().'.method', $config['method']);
-        $container->setParameter($this->getAlias().'.listener_class', $config['listener_class']);
-        $container->setParameter($this->getAlias().'.encryptor_class', $config['encryptor_class']);
-        $container->setParameter($this->getAlias().'.annotation_classes', $config['annotation_classes']);
-        $container->setParameter($this->getAlias().'.is_disabled', $config['is_disabled']);
+        $container->setParameter('spec_shaper_encrypt.encrypt_key', $encryptKey);
+        $container->setParameter('spec_shaper_encrypt.key_id', $config['key_id']);
+        $container->setParameter('spec_shaper_encrypt.decryption_keys', $config['decryption_keys']);
+        $container->setParameter('spec_shaper_encrypt.blind_index_key', $blindIndexKey);
+        $container->setParameter('spec_shaper_encrypt.default_associated_data', $config['default_associated_data']);
+        $container->setParameter('spec_shaper_encrypt.listener_class', $config['listener_class']);
+        $container->setParameter('spec_shaper_encrypt.encryptor_class', $config['encryptor_class']);
+        $container->setParameter('spec_shaper_encrypt.annotation_classes', $config['annotation_classes']);
+        $container->setParameter('spec_shaper_encrypt.is_disabled', $config['is_disabled']);
+
+        if (null !== $config['key_provider_service']) {
+            $container->removeDefinition(KeyProviderInterface::class);
+            $container->setAlias(KeyProviderInterface::class, $config['key_provider_service']);
+        }
+
+        if (null !== $config['encryptor_service']) {
+            $container->removeDefinition(EncryptorInterface::class);
+            $container->setAlias(EncryptorInterface::class, $config['encryptor_service']);
+        }
 
         $doctrineListener = new Definition($config['listener_class']);
         $doctrineListener
@@ -50,8 +72,6 @@ class SpecShaperEncryptExtension extends Extension
             ->setArgument('$isDisabled', $config['is_disabled'])
         ;
 
-        // Keep supporting custom listeners that use the bundle's historical
-        // annotation array constructor argument.
         $listenerConstructor = (new \ReflectionClass($config['listener_class']))->getConstructor();
         foreach ($listenerConstructor?->getParameters() ?? [] as $parameter) {
             if ('annotationArray' === $parameter->getName()) {
@@ -79,33 +99,47 @@ class SpecShaperEncryptExtension extends Extension
                 'connection' => $connectionName,
             ]);
 
+            if (method_exists($config['listener_class'], 'postPersist')) {
+                $doctrineListener->addTag('doctrine.event_listener', [
+                    'event' => 'postPersist',
+                    'priority' => 500,
+                    'connection' => $connectionName,
+                ]);
+            }
+
             $doctrineListener->addTag('doctrine.event_listener', [
                 'event' => 'onFlush',
                 'priority' => 500,
                 'connection' => $connectionName,
             ]);
-
-            $encryptEventListener->addTag('kernel.event_listener', [
-                'event' => EncryptEvents::ENCRYPT,
-                'method' => 'encrypt',
-                'connection' => $connectionName,
-            ]);
-
-            $encryptEventListener->addTag('kernel.event_listener', [
-                'event' => EncryptEvents::DECRYPT,
-                'method' => 'decrypt',
-                'connection' => $connectionName,
-            ]);
         }
 
-        $container->addDefinitions([
-            DoctrineEncryptListener::class => $doctrineListener,
-            EncryptEventListener::class => $encryptEventListener
+        $encryptEventListener->addTag('kernel.event_listener', [
+            'event' => EncryptEvents::ENCRYPT,
+            'method' => 'encrypt',
         ]);
+        $encryptEventListener->addTag('kernel.event_listener', [
+            'event' => EncryptEvents::DECRYPT,
+            'method' => 'decrypt',
+        ]);
+        $encryptEventListener->addTag('kernel.event_listener', [
+            'event' => EncryptEvents::LEGACY_ENCRYPT,
+            'method' => 'encrypt',
+        ]);
+        $encryptEventListener->addTag('kernel.event_listener', [
+            'event' => EncryptEvents::LEGACY_DECRYPT,
+            'method' => 'decrypt',
+        ]);
+
+        $container->addDefinitions([
+            DoctrineEncryptListenerInterface::class => $doctrineListener,
+            EncryptEventListener::class => $encryptEventListener,
+        ]);
+        $container->setAlias(DoctrineEncryptListener::class, DoctrineEncryptListenerInterface::class);
 
         // Check if Twig is available
         if ($config['enable_twig'] && class_exists(\Twig\Environment::class)) {
-            $loader->load('twig_services.yaml');
+            $loader->load('twig_services.php');
         }
     }
 }

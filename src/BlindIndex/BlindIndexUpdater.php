@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\BlindIndex;
 
 use SpecShaper\EncryptBundle\Exception\EncryptException;
 use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
 
-final class BlindIndexUpdater
+final readonly class BlindIndexUpdater
 {
     public function __construct(
-        private readonly BlindIndexHasherInterface $blindIndexHasher
+        private BlindIndexHasherInterface $blindIndexHasher,
     ) {
     }
 
@@ -28,7 +30,7 @@ final class BlindIndexUpdater
             $sourceValue = $blindIndexField->getSourceProperty()->getValue($entity);
 
             if (is_object($sourceValue)) {
-                throw new EncryptException(sprintf('Cannot create blind index from an object at %s:%s', get_class($entity), $blindIndexField->getSourceField()));
+                throw new EncryptException(sprintf('Cannot create blind index from an object at %s:%s', $entity::class, $blindIndexField->getSourceField()));
             }
 
             $blindIndexField->getProperty()->setValue(

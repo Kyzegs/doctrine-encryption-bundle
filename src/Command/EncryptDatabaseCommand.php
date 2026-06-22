@@ -1,148 +1,244 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Command;
 
+use Doctrine\DBAL\Connection;
+use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ManagerRegistry;
+use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
+use SpecShaper\EncryptBundle\Exception\EncryptException;
+use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
+use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Command\Command;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
-use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
-/**
- * bin/console encrypt:database decrypt --manager=default
- */
-#[AsCommand(
-    name: 'encrypt:database',
-    description: 'Encrypts or Decrypts the database'
-)]
-class EncryptDatabaseCommand extends Command
+#[AsCommand(name: 'encrypt:database', description: 'Encrypts, decrypts, or rotates encrypted database columns')]
+final class EncryptDatabaseCommand extends Command
 {
-
-    private ?EntityManagerInterface $em;
-    
-    private array $encryptedFields = [];
+    private const DIRECTIONS = ['encrypt', 'decrypt', 'rotate'];
 
     public function __construct(
         private readonly EncryptorInterface $encryptor,
         private readonly ManagerRegistry $registry,
-        private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider
-    )
-    {
+        private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider,
+    ) {
         parent::__construct();
     }
 
     protected function configure(): void
     {
-        $this->addArgument('direction', InputArgument::REQUIRED,'Encrypt or Decrypt db.');
-        $this->addOption('manager', null,InputOption::VALUE_OPTIONAL,'Nominate the database connection manager name.');
+        $this
+            ->addArgument('direction', InputArgument::REQUIRED, 'One of: encrypt, decrypt, rotate.')
+            ->addOption('manager', null, InputOption::VALUE_REQUIRED, 'Doctrine ORM manager name.')
+            ->addOption('batch-size', null, InputOption::VALUE_REQUIRED, 'Rows per transaction.', '250')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Inspect and count rows without writing changes.')
+            ->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip the confirmation prompt.')
+        ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-
         $io = new SymfonyStyle($input, $output);
+        $direction = (string) $input->getArgument('direction');
+        if (!in_array($direction, self::DIRECTIONS, true)) {
+            $io->error(sprintf('Invalid direction "%s". Choose encrypt, decrypt, or rotate.', $direction));
 
-        $direction = $input->getArgument('direction');
-        $managerName = $this->registry->getDefaultManagerName();
-
-        $managerNameOption = $input->getOption('manager');
-
-        if(!empty($managerNameOption)) {
-            $managerName = $managerNameOption;
+            return Command::INVALID;
         }
 
-        $this->em = $this->registry->getManager($managerName);
-        
-        $this->getEncryptedFields();
+        $batchSize = filter_var($input->getOption('batch-size'), \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        if (false === $batchSize) {
+            $io->error('--batch-size must be a positive integer.');
 
-        $io->title('Decrypting the database');
-
-        $tables = count($this->encryptedFields);
-
-        $io->writeln($tables . ' tables to decrypt');
-
-        $io->progressStart($tables);
-
-        foreach ($this->encryptedFields as $tableName => $fieldArray){
-
-            $this->decryptTable($tableName, $fieldArray, $direction);
-            $io->progressAdvance();
+            return Command::INVALID;
         }
 
-        $io->progressFinish();
+        $managerName = $input->getOption('manager') ?: $this->registry->getDefaultManagerName();
+        $entityManager = $this->registry->getManager($managerName);
+        if (!$entityManager instanceof EntityManagerInterface) {
+            throw new EncryptException(sprintf('Manager "%s" is not a Doctrine ORM entity manager.', $managerName));
+        }
+
+        $tables = $this->collectTables($entityManager);
+        if ([] === $tables) {
+            $io->success('No encrypted fields were found.');
+
+            return Command::SUCCESS;
+        }
+
+        $dryRun = (bool) $input->getOption('dry-run');
+        $io->title(sprintf('%s encrypted database fields%s', ucfirst($direction), $dryRun ? ' (dry run)' : ''));
+        $io->writeln(sprintf('%d table(s) will be processed.', count($tables)));
+
+        if (!$dryRun && !$input->getOption('force') && $input->isInteractive() && !$io->confirm('Backups are strongly recommended. Continue?', false)) {
+            $io->warning('No changes were made.');
+
+            return Command::SUCCESS;
+        }
+
+        $processed = 0;
+        foreach ($tables as $table) {
+            $tableProcessed = $this->processTable($entityManager->getConnection(), $table, $direction, $batchSize, $dryRun);
+            $processed += $tableProcessed;
+            $io->writeln(sprintf('Processed %s (%d rows).', $table['name'], $tableProcessed));
+        }
+
+        $io->success(sprintf('%d row(s) processed%s.', $processed, $dryRun ? '; no changes written' : ''));
 
         return Command::SUCCESS;
     }
 
-    private function decryptTable(string $tableName, array $fieldArray, string $direction): void
+    /**
+     * @return list<array{name: string, fields: array<string, string>, identifiers: array<string, string>}>
+     */
+    private function collectTables(EntityManagerInterface $entityManager): array
     {
-        // Get all the field names that have been encrypted as an array.
-        // Convert those to comma seperated string like lastname, firstname.
-        $fields = implode(', ', $fieldArray);
+        $tables = [];
 
-        $selectQuery = sprintf('SELECT id, %s FROM %s', $fields, $tableName);
-
-        // Fetch these encrypted rows
-        $resultRows = $this->em->getConnection()->fetchAllAssociative($selectQuery);
-
-        $decryptedFields = [];
-
-        foreach($resultRows as $resultRow)
-        {
-            foreach ($resultRow as $fieldName => $value) {
-
-                if('id' === $fieldName){
-                    continue;
-                }
-
-                if ('encrypt' === $direction) {
-                    $newValue = $this->encryptor->encrypt($value, $fieldName);
-                } else {
-                    $newValue = $this->encryptor->decrypt($value, $fieldName);
-                }
-
-                $decryptedFields[$fieldName] = $newValue;
-            }
-
-            $this->em->getConnection()->update($tableName, $decryptedFields, ['id' => $resultRow['id']]);
-        }
-    }
-
-    private function getEncryptedFields(): array
-    {
-
-        /** @var ClassMetadata[] $meta */
-        $meta = $this->em->getMetadataFactory()->getAllMetadata();
-
-        // Loop through entities
-        foreach ($meta as $entityMeta) {
-
-            if($entityMeta->isMappedSuperclass){
+        /** @var ClassMetadata<object> $metadata */
+        foreach ($entityManager->getMetadataFactory()->getAllMetadata() as $metadata) {
+            if ($metadata->isMappedSuperclass) {
                 continue;
             }
 
-            $tableName = $entityMeta->getTableName();
+            $encryptedFields = array_keys($this->encryptedFieldMetadataProvider->getForClassMetadata($metadata));
+            if ([] === $encryptedFields) {
+                continue;
+            }
 
-            $classMeta = $this->em->getClassMetadata($entityMeta->getName());
+            $identifiers = [];
+            foreach ($metadata->getIdentifierFieldNames() as $field) {
+                if (!$metadata->hasField($field)) {
+                    throw new EncryptException(sprintf('Entity "%s" uses an association identifier, which encrypt:database cannot safely update.', $metadata->getName()));
+                }
+                $identifiers[$field] = $metadata->getColumnName($field);
+            }
 
-            foreach (array_keys($this->encryptedFieldMetadataProvider->getForClassMetadata($classMeta)) as $fieldName) {
-                if (!isset($this->encryptedFields[$tableName])) {
-                    $this->encryptedFields[$tableName] = [];
+            if ([] === $identifiers) {
+                throw new EncryptException(sprintf('Entity "%s" has no mapped identifier.', $metadata->getName()));
+            }
+
+            foreach ($encryptedFields as $field) {
+                $mapping = $metadata->getFieldMapping($field);
+                $declaringClass = $mapping['inherited'] ?? $mapping['declared'] ?? $metadata->getName();
+                $tableMetadata = $entityManager->getClassMetadata($declaringClass);
+                if ($tableMetadata->isMappedSuperclass) {
+                    $tableMetadata = $metadata;
                 }
 
-                $columnName = $classMeta->getColumnName($fieldName);
-                $this->encryptedFields[$tableName][$fieldName] = $columnName;
+                $tableName = $tableMetadata->getTableName();
+                $key = $tableName."\0".implode(',', $identifiers);
+                $tables[$key] ??= ['name' => $tableName, 'fields' => [], 'identifiers' => $identifiers];
+                $tables[$key]['fields'][$field] = $metadata->getColumnName($field);
             }
         }
 
-        return $this->encryptedFields;
+        return array_values($tables);
     }
 
+    /**
+     * @param array{name: string, fields: array<string, string>, identifiers: array<string, string>} $table
+     */
+    private function processTable(Connection $connection, array $table, string $direction, int $batchSize, bool $dryRun): int
+    {
+        $platform = $connection->getDatabasePlatform();
+        $quotedTable = $platform->quoteIdentifier($table['name']);
+        $selections = [];
+        $fieldAliases = [];
+        $identifierAliases = [];
+        $ordering = [];
+
+        foreach ($table['identifiers'] as $field => $column) {
+            $alias = '__identifier_'.count($identifierAliases);
+            $identifierAliases[$alias] = $column;
+            $selections[] = $platform->quoteIdentifier($column).' AS '.$platform->quoteIdentifier($alias);
+            $ordering[] = $platform->quoteIdentifier($column);
+        }
+        foreach ($table['fields'] as $field => $column) {
+            $alias = '__encrypted_'.count($fieldAliases);
+            $fieldAliases[$alias] = ['field' => $field, 'column' => $column];
+            $selections[] = $platform->quoteIdentifier($column).' AS '.$platform->quoteIdentifier($alias);
+        }
+
+        $baseQuery = sprintf('SELECT %s FROM %s ORDER BY %s', implode(', ', $selections), $quotedTable, implode(', ', $ordering));
+        $offset = 0;
+        $processed = 0;
+
+        do {
+            $query = $platform->modifyLimitQuery($baseQuery, $batchSize, $offset);
+            $rows = $connection->fetchAllAssociative($query);
+            if ([] === $rows) {
+                break;
+            }
+
+            if (!$dryRun) {
+                $connection->beginTransaction();
+            }
+
+            try {
+                foreach ($rows as $row) {
+                    if (!$dryRun) {
+                        $this->updateRow($connection, $quotedTable, $row, $fieldAliases, $identifierAliases, $direction);
+                    }
+                    ++$processed;
+                }
+                if (!$dryRun) {
+                    $connection->commit();
+                }
+            } catch (\Throwable $exception) {
+                if ($connection->isTransactionActive()) {
+                    $connection->rollBack();
+                }
+                throw $exception;
+            }
+
+            $offset += count($rows);
+        } while (count($rows) === $batchSize);
+
+        return $processed;
+    }
+
+    /**
+     * @param array<string, mixed>                                $row
+     * @param array<string, array{field: string, column: string}> $fieldAliases
+     * @param array<string, string>                               $identifierAliases
+     */
+    private function updateRow(Connection $connection, string $quotedTable, array $row, array $fieldAliases, array $identifierAliases, string $direction): void
+    {
+        $platform = $connection->getDatabasePlatform();
+        $assignments = [];
+        $conditions = [];
+        $parameters = [];
+
+        foreach ($fieldAliases as $alias => $mapping) {
+            $value = $row[$alias];
+            $newValue = match ($direction) {
+                'encrypt' => $this->encryptor->encrypt($value, $mapping['field']),
+                'decrypt' => $this->encryptor->decrypt($value, $mapping['field']),
+                'rotate' => $this->encryptor->encrypt($this->encryptor->decrypt($value, $mapping['field']), $mapping['field']),
+                default => throw new \LogicException(sprintf('Unsupported direction "%s".', $direction)),
+            };
+            $parameter = 'field_'.count($parameters);
+            $assignments[] = $platform->quoteIdentifier($mapping['column']).' = :'.$parameter;
+            $parameters[$parameter] = $newValue;
+        }
+
+        foreach ($identifierAliases as $alias => $column) {
+            $parameter = 'identifier_'.count($parameters);
+            $conditions[] = $platform->quoteIdentifier($column).' = :'.$parameter;
+            $parameters[$parameter] = $row[$alias];
+        }
+
+        $connection->executeStatement(
+            sprintf('UPDATE %s SET %s WHERE %s', $quotedTable, implode(', ', $assignments), implode(' AND ', $conditions)),
+            $parameters,
+        );
+    }
 }

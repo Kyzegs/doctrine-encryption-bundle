@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace SpecShaper\EncryptBundle\Hashers;
 
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
+use SpecShaper\EncryptBundle\Attribute\BlindIndex;
 use SpecShaper\EncryptBundle\Exception\EncryptException;
 
-final class HmacBlindIndexHasher implements BlindIndexHasherInterface
+final readonly class HmacBlindIndexHasher implements BlindIndexHasherInterface
 {
     public function __construct(
-        private readonly string $key
+        private string $key,
     ) {
     }
 

@@ -1,9 +1,21 @@
-#Change Log
+# Changelog
 
 ## Unreleased
-- Add format-neutral encrypted field mapping through Doctrine's `encrypted` field option.
 
-## 3.2.0 (2024-05-40) Update
+- Make versioned AES-256-GCM authenticated encryption the default while retaining legacy CBC/GCM reads.
+- Add key IDs, retired decryption keys, a key-provider interface, and the `rotate` maintenance operation.
+- Store associated-data context in the ciphertext envelope so mapped field renames remain decryptable.
+- Validate keys, envelopes, base64, IVs, tags, and OpenSSL failures strictly.
+- Add modern `Attribute` classes with compatibility wrappers for the historical `Annotations` namespace.
+- Support Doctrine's `encrypted` field mapping option.
+- Preserve encrypted fields inside Doctrine embeddables across lifecycle events and maintenance commands.
+- Fix multi-connection event registration and restore inserted plaintext during `postPersist`.
+- Harden database commands with dry runs, confirmation, batches, transactions, quoted identifiers, and composite scalar IDs.
+- Add Doctrine integration tests, PHPStan, PHP-CS-Fixer, Rector, dependency auditing, and an expanded CI matrix.
+- Replace YAML service definitions with native PHP configuration and remove unused Monolog/Sodium requirements.
+- Rewrite installation, rotation, migration, and security documentation.
+
+## 3.2.0 (2024-05-30)
 Resolve issue of child classes containing Encrypted values not persisting correctly.  
 Made Twig extension an opt-out in config.  
 Check for null encrypted values on insert.  
