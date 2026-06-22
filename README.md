@@ -1,3 +1,5 @@
+![Doctrine Encryption Bundle banner](banner.svg)
+
 # Doctrine Encryption Bundle
 
 Field-level authenticated encryption and blind indexes for Doctrine entities in Symfony applications.
