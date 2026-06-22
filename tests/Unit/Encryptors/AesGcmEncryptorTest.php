@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Encryptors;
 
-use SpecShaper\EncryptBundle\Encryptors\AesGcmEncryptor;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Key\StaticKeyProvider;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\AesGcmEncryptor;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Key\StaticKeyProvider;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
 /**

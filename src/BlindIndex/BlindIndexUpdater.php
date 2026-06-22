@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\BlindIndex;
+namespace Kyzegs\DoctrineEncryptionBundle\BlindIndex;
 
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
 
 final readonly class BlindIndexUpdater
 {

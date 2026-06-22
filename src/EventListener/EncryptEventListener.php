@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\EventListener;
+namespace Kyzegs\DoctrineEncryptionBundle\EventListener;
 
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\Event\EncryptEventInterface;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Event\EncryptEventInterface;
 
 /**
  * Doctrine event listener which encrypts/decrypts entities.

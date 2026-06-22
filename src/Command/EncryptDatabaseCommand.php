@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Command;
+namespace Kyzegs\DoctrineEncryptionBundle\Command;
 
 use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ManagerRegistry;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedFieldMetadataProvider;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

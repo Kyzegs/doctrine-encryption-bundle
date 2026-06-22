@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Command;
+namespace Kyzegs\DoctrineEncryptionBundle\Command;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\Persistence\ManagerRegistry;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexField;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexMetadataProvider;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexField;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;

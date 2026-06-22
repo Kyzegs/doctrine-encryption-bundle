@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\DependencyInjection;
+namespace Kyzegs\DoctrineEncryptionBundle\DependencyInjection;
 
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\Event\EncryptEvents;
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListener;
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
-use SpecShaper\EncryptBundle\EventListener\EncryptEventListener;
-use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Event\EncryptEvents;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListener;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListenerInterface;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\EncryptEventListener;
+use Kyzegs\DoctrineEncryptionBundle\Key\KeyProviderInterface;
 use Symfony\Component\Config\FileLocator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Definition;
@@ -21,7 +21,7 @@ use Symfony\Component\DependencyInjection\Loader\PhpFileLoader;
  *
  * @see http://symfony.com/doc/current/cookbook/bundles/extension.html
  */
-final class SpecShaperEncryptExtension extends Extension
+final class DoctrineEncryptionExtension extends Extension
 {
     public function load(array $configs, ContainerBuilder $container): void
     {
@@ -38,7 +38,7 @@ final class SpecShaperEncryptExtension extends Extension
         $loader->load('services.php');
 
         if ($container->hasParameter('encrypt_key')) {
-            trigger_deprecation('SpecShaperEncryptBundle', 'v3.0.2', 'storing Specshaper Encrypt Key in parameters is deprecated. Move to Config/Packages/spec_shaper_encrypt.yaml');
+            trigger_deprecation('DoctrineEncryptionBundle', 'v3.0.2', 'storing Doctrine Encryption Key in parameters is deprecated. Move to Config/Packages/doctrine_encryption.yaml');
             $encryptKey = $container->getParameter('encrypt_key');
         } else {
             $encryptKey = $config['encrypt_key'];
@@ -46,15 +46,15 @@ final class SpecShaperEncryptExtension extends Extension
 
         $blindIndexKey = $config['blind_index_key'] ?? $encryptKey;
 
-        $container->setParameter('spec_shaper_encrypt.encrypt_key', $encryptKey);
-        $container->setParameter('spec_shaper_encrypt.key_id', $config['key_id']);
-        $container->setParameter('spec_shaper_encrypt.decryption_keys', $config['decryption_keys']);
-        $container->setParameter('spec_shaper_encrypt.blind_index_key', $blindIndexKey);
-        $container->setParameter('spec_shaper_encrypt.default_associated_data', $config['default_associated_data']);
-        $container->setParameter('spec_shaper_encrypt.listener_class', $config['listener_class']);
-        $container->setParameter('spec_shaper_encrypt.encryptor_class', $config['encryptor_class']);
-        $container->setParameter('spec_shaper_encrypt.annotation_classes', $config['annotation_classes']);
-        $container->setParameter('spec_shaper_encrypt.is_disabled', $config['is_disabled']);
+        $container->setParameter('doctrine_encryption.encrypt_key', $encryptKey);
+        $container->setParameter('doctrine_encryption.key_id', $config['key_id']);
+        $container->setParameter('doctrine_encryption.decryption_keys', $config['decryption_keys']);
+        $container->setParameter('doctrine_encryption.blind_index_key', $blindIndexKey);
+        $container->setParameter('doctrine_encryption.default_associated_data', $config['default_associated_data']);
+        $container->setParameter('doctrine_encryption.listener_class', $config['listener_class']);
+        $container->setParameter('doctrine_encryption.encryptor_class', $config['encryptor_class']);
+        $container->setParameter('doctrine_encryption.annotation_classes', $config['annotation_classes']);
+        $container->setParameter('doctrine_encryption.is_disabled', $config['is_disabled']);
 
         if (null !== $config['key_provider_service']) {
             $container->removeDefinition(KeyProviderInterface::class);

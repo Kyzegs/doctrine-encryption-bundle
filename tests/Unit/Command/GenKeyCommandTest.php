@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Command;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Command;
 
+use Kyzegs\DoctrineEncryptionBundle\Command\GenKeyCommand;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Command\GenKeyCommand;
 use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;

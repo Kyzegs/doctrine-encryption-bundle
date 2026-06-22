@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Encryptors;
 
 /**
  * Encryptor interface for encryptors.

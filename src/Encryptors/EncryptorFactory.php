@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Encryptors;
 
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
-use SpecShaper\EncryptBundle\Key\StaticKeyProvider;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Key\KeyProviderInterface;
+use Kyzegs\DoctrineEncryptionBundle\Key\StaticKeyProvider;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 final readonly class EncryptorFactory

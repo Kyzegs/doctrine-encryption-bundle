@@ -39,29 +39,29 @@ Major backward compatibility breaking change to Symfony 6 and PHP 8.
 Service definition was:
 ```yaml
     # Factory to create the encryptor/decryptor
-    SpecShaper\EncryptBundle\Encryptors\EncryptorFactory:
+    Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorFactory:
         arguments: ['@logger', '@event_dispatcher']
         tags:
             - { name: monolog.logger, channel: app }
         
-    SpecShaper\EncryptBundle\Encryptors\EncryptorInterface:
-        factory: ['@SpecShaper\EncryptBundle\Encryptors\EncryptorFactory','createService']
+    Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface:
+        factory: ['@Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorFactory','createService']
         arguments:
-            - '%spec_shaper_encrypt.method%'
-            - '%spec_shaper_encrypt.encrypt_key%'
+            - '%doctrine_encryption.method%'
+            - '%doctrine_encryption.encrypt_key%'
 ```
 Service definition becomes:
 ```yaml
     # Factory to create the encryptor/decryptor
-    SpecShaper\EncryptBundle\Encryptors\EncryptorFactory:
+    Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorFactory:
         arguments: ['@event_dispatcher']
         tags:
             - { name: monolog.logger, channel: app }
 
     # The encryptor service created by the factory according to the passed method and using the encrypt_key
-    SpecShaper\EncryptBundle\Encryptors\EncryptorInterface:
-        factory: ['@SpecShaper\EncryptBundle\Encryptors\EncryptorFactory','createService']
+    Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface:
+        factory: ['@Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorFactory','createService']
         arguments:
-            $encryptKey: '%spec_shaper_encrypt.encrypt_key%'
-            $encryptorClass: '%spec_shaper_encrypt.encryptor_class%' #optional
+            $encryptKey: '%doctrine_encryption.encrypt_key%'
+            $encryptorClass: '%doctrine_encryption.encryptor_class%' #optional
 ```

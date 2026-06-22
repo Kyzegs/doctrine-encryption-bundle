@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle;
+namespace Kyzegs\DoctrineEncryptionBundle;
 
-use SpecShaper\EncryptBundle\DependencyInjection\Configuration;
-use SpecShaper\EncryptBundle\DependencyInjection\SpecShaperEncryptExtension;
+use Kyzegs\DoctrineEncryptionBundle\DependencyInjection\Configuration;
+use Kyzegs\DoctrineEncryptionBundle\DependencyInjection\DoctrineEncryptionExtension;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
-class SpecShaperEncryptBundle extends AbstractBundle
+class DoctrineEncryptionBundle extends AbstractBundle
 {
     public function configure(DefinitionConfigurator $definition): void
     {
@@ -21,6 +21,6 @@ class SpecShaperEncryptBundle extends AbstractBundle
     /** @param array<string, mixed> $config */
     public function loadExtension(array $config, ContainerConfigurator $configurator, ContainerBuilder $container): void
     {
-        SpecShaperEncryptExtension::loadProcessedConfig($config, $container);
+        DoctrineEncryptionExtension::loadProcessedConfig($config, $container);
     }
 }

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Event;
+namespace Kyzegs\DoctrineEncryptionBundle\Event;
 
 final class DecryptEvent extends EncryptEvent
 {

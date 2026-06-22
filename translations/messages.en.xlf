@@ -7,7 +7,7 @@
         <body>
             <trans-unit id="1" resname="sseb.exception.encryptionException">
                 <source>sseb.exception.encryptionException</source>
-                <target>The SpecShaper Encrypt Bundle has thrown an exception.</target>
+                <target>The Doctrine Encryption Bundle has thrown an exception.</target>
             </trans-unit>
         </body>
     </file>

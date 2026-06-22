@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Encryptors;
 
-use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
+use Kyzegs\DoctrineEncryptionBundle\Key\KeyProviderInterface;
 
 interface KeyProviderAwareInterface
 {

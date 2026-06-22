@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Encryptors;
 
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListenerInterface;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 
 final class CiphertextEnvelope
 {

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Integration;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Integration;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\ManagerRegistry;
-use SpecShaper\EncryptBundle\Command\EncryptDatabaseCommand;
-use SpecShaper\EncryptBundle\Tests\Integration\Fixture\EncryptedContact;
-use SpecShaper\EncryptBundle\Tests\Integration\Fixture\EncryptedRecord;
-use SpecShaper\EncryptBundle\Twig\EncryptExtension;
+use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
+use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedContact;
+use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedRecord;
+use Kyzegs\DoctrineEncryptionBundle\Twig\EncryptExtension;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Tester\CommandTester;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Exception;
+namespace Kyzegs\DoctrineEncryptionBundle\Exception;
 
 class EncryptException extends \RuntimeException
 {

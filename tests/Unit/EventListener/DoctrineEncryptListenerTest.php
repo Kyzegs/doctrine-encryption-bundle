@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\EventListener;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\EventListener;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\UnitOfWork;
 use Doctrine\Persistence\Mapping\RuntimeReflectionService;
+use Kyzegs\DoctrineEncryptionBundle\Annotations\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListener;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedFieldMetadataProvider;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Annotations\Encrypted;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexMetadataProvider;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListener;
-use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
-use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
 class DoctrineEncryptListenerTest extends TestCase
 {

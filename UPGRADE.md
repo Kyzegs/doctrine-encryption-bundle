@@ -13,7 +13,7 @@ New ciphertext is larger because it contains a format version, algorithm, key ID
 
 ### Attribute namespace
 
-Use `SpecShaper\EncryptBundle\Attribute\Encrypted` and `BlindIndex` in new code. The historical `Annotations` namespace remains as a deprecated compatibility layer.
+Use `Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted` and `BlindIndex` in new code. The historical `Annotations` namespace remains as a deprecated compatibility layer.
 
 ### Encryption algorithm
 

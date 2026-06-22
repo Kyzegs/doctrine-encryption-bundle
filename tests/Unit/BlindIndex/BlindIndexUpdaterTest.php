@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\BlindIndex;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\BlindIndex;
 
+use Kyzegs\DoctrineEncryptionBundle\Annotations\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexField;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\HmacBlindIndexHasher;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexField;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Hashers\HmacBlindIndexHasher;
 
 class BlindIndexUpdaterTest extends TestCase
 {

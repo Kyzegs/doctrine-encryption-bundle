@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\DependencyInjection;
+namespace Kyzegs\DoctrineEncryptionBundle\DependencyInjection;
 
-use SpecShaper\EncryptBundle\Annotations\Encrypted as LegacyEncrypted;
-use SpecShaper\EncryptBundle\Attribute\Encrypted;
-use SpecShaper\EncryptBundle\Encryptors\AesGcmEncryptor;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListener;
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
+use Kyzegs\DoctrineEncryptionBundle\Annotations\Encrypted as LegacyEncrypted;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\AesGcmEncryptor;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListener;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListenerInterface;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
@@ -23,7 +23,7 @@ final class Configuration implements ConfigurationInterface
 {
     public function getConfigTreeBuilder(): TreeBuilder
     {
-        $treeBuilder = new TreeBuilder('spec_shaper_encrypt');
+        $treeBuilder = new TreeBuilder('doctrine_encryption');
 
         self::configure($treeBuilder->getRootNode());
 

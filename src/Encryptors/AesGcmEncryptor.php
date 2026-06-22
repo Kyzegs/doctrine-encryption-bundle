@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Encryptors;
 
-use SpecShaper\EncryptBundle\Event\EncryptKeyEvent;
-use SpecShaper\EncryptBundle\Event\EncryptKeyEvents;
-use SpecShaper\EncryptBundle\EventListener\DoctrineEncryptListenerInterface;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
+use Kyzegs\DoctrineEncryptionBundle\Event\EncryptKeyEvent;
+use Kyzegs\DoctrineEncryptionBundle\Event\EncryptKeyEvents;
+use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListenerInterface;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Key\KeyProviderInterface;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 
 class AesGcmEncryptor implements EncryptorInterface, KeyProviderAwareInterface, \Stringable

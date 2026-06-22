@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Annotations;
+namespace Kyzegs\DoctrineEncryptionBundle\Annotations;
 
-/** @deprecated Use SpecShaper\EncryptBundle\Attribute\Encrypted. */
+/** @deprecated Use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted. */
 #[\Attribute(\Attribute::TARGET_PROPERTY)]
-class Encrypted extends \SpecShaper\EncryptBundle\Attribute\Encrypted
+class Encrypted extends \Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted
 {
 }

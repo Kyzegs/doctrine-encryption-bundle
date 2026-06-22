@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Mapping;
+namespace Kyzegs\DoctrineEncryptionBundle\Mapping;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
 

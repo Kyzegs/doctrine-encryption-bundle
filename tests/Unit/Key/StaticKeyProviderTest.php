@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Key;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Key;
 
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Key\StaticKeyProvider;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Key\StaticKeyProvider;
 
 final class StaticKeyProviderTest extends TestCase
 {

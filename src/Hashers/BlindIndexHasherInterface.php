@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Hashers;
+namespace Kyzegs\DoctrineEncryptionBundle\Hashers;
 
-use SpecShaper\EncryptBundle\Attribute\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
 
 interface BlindIndexHasherInterface
 {

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Hashers;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Hashers;
 
+use Kyzegs\DoctrineEncryptionBundle\Annotations\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\HmacBlindIndexHasher;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Hashers\HmacBlindIndexHasher;
 
 class HmacBlindIndexHasherTest extends TestCase
 {

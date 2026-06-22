@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\BlindIndex;
+namespace Kyzegs\DoctrineEncryptionBundle\BlindIndex;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ObjectManager;
-use SpecShaper\EncryptBundle\Attribute\BlindIndex;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 
 final class BlindIndexMetadataProvider
 {

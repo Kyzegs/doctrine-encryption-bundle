@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Twig;
+namespace Kyzegs\DoctrineEncryptionBundle\Twig;
 
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
 use Twig\Extension\AbstractExtension;
 use Twig\TwigFilter;
 

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Mapping;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Mapping;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\Mapping\RuntimeReflectionService;
+use Kyzegs\DoctrineEncryptionBundle\Annotations\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedFieldMetadataProvider;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Annotations\Encrypted;
-use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
 
 final class EncryptedFieldMetadataProviderTest extends TestCase
 {

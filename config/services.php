@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexMetadataProvider;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
-use SpecShaper\EncryptBundle\Command\BlindIndexDatabaseCommand;
-use SpecShaper\EncryptBundle\Command\EncryptDatabaseCommand;
-use SpecShaper\EncryptBundle\Command\GenKeyCommand;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorFactory;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
-use SpecShaper\EncryptBundle\Hashers\HmacBlindIndexHasher;
-use SpecShaper\EncryptBundle\Key\KeyProviderInterface;
-use SpecShaper\EncryptBundle\Key\StaticKeyProvider;
-use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Command\BlindIndexDatabaseCommand;
+use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
+use Kyzegs\DoctrineEncryptionBundle\Command\GenKeyCommand;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorFactory;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\HmacBlindIndexHasher;
+use Kyzegs\DoctrineEncryptionBundle\Key\KeyProviderInterface;
+use Kyzegs\DoctrineEncryptionBundle\Key\StaticKeyProvider;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedFieldMetadataProvider;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
@@ -24,9 +24,9 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(KeyProviderInterface::class, StaticKeyProvider::class)
         ->args([
-            param('spec_shaper_encrypt.encrypt_key'),
-            param('spec_shaper_encrypt.key_id'),
-            param('spec_shaper_encrypt.decryption_keys'),
+            param('doctrine_encryption.encrypt_key'),
+            param('doctrine_encryption.key_id'),
+            param('doctrine_encryption.decryption_keys'),
         ]);
 
     $services->set(EncryptorFactory::class)
@@ -36,17 +36,17 @@ return static function (ContainerConfigurator $container): void {
         ->factory([service(EncryptorFactory::class), 'createService'])
         ->args([
             null,
-            param('spec_shaper_encrypt.default_associated_data'),
-            param('spec_shaper_encrypt.encryptor_class'),
+            param('doctrine_encryption.default_associated_data'),
+            param('doctrine_encryption.encryptor_class'),
         ]);
 
     $services->set(BlindIndexHasherInterface::class, HmacBlindIndexHasher::class)
-        ->args([param('spec_shaper_encrypt.blind_index_key')]);
+        ->args([param('doctrine_encryption.blind_index_key')]);
 
     $services->set(BlindIndexMetadataProvider::class);
     $services->set(BlindIndexUpdater::class)->args([service(BlindIndexHasherInterface::class)]);
     $services->set(EncryptedFieldMetadataProvider::class)
-        ->args([param('spec_shaper_encrypt.annotation_classes')]);
+        ->args([param('doctrine_encryption.annotation_classes')]);
 
     $services->set(EncryptDatabaseCommand::class)
         ->args([service(EncryptorInterface::class), service('doctrine'), service(EncryptedFieldMetadataProvider::class)])

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Annotations;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Annotations;
 
+use Kyzegs\DoctrineEncryptionBundle\Annotations\BlindIndex;
 use PHPUnit\Framework\TestCase;
-use SpecShaper\EncryptBundle\Annotations\BlindIndex;
 
 class BlindIndexTest extends TestCase
 {

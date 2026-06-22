@@ -1,6 +1,8 @@
-# SpecShaper Encrypt Bundle
+# Doctrine Encryption Bundle
 
 Field-level authenticated encryption and blind indexes for Doctrine entities in Symfony applications.
+
+Maintained fork published as `kyzegs/doctrine-encryption-bundle`, replacing the unmaintained original package.
 
 ## Requirements
 
@@ -12,7 +14,7 @@ Field-level authenticated encryption and blind indexes for Doctrine entities in 
 ## Installation
 
 ```bash
-composer require specshaper/encrypt-bundle
+composer require kyzegs/doctrine-encryption-bundle
 ```
 
 Register the bundle if Symfony Flex has not already done so:
@@ -20,7 +22,7 @@ Register the bundle if Symfony Flex has not already done so:
 ```php
 // config/bundles.php
 return [
-    SpecShaper\EncryptBundle\SpecShaperEncryptBundle::class => ['all' => true],
+    Kyzegs\DoctrineEncryptionBundle\DoctrineEncryptionBundle::class => ['all' => true],
 ];
 ```
 
@@ -33,17 +35,17 @@ bin/console encrypt:genkey
 Store the result in a secret manager or an uncommitted environment file:
 
 ```dotenv
-SPEC_SHAPER_ENCRYPT_KEY=base64-encoded-key
-SPEC_SHAPER_BLIND_INDEX_KEY=a-different-secret
+DOCTRINE_ENCRYPTION_ENCRYPT_KEY=base64-encoded-key
+DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY=a-different-secret
 ```
 
 Configure the bundle:
 
 ```yaml
-# config/packages/spec_shaper_encrypt.yaml
-spec_shaper_encrypt:
-    encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY)%'
-    blind_index_key: '%env(SPEC_SHAPER_BLIND_INDEX_KEY)%'
+# config/packages/doctrine_encryption.yaml
+doctrine_encryption:
+    encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
+    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
     key_id: '2026-01'
 ```
 
@@ -55,7 +57,7 @@ Use the PHP attribute on a Doctrine string field. Allow room for the versioned c
 
 ```php
 use Doctrine\ORM\Mapping as ORM;
-use SpecShaper\EncryptBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
 
 #[ORM\Column(type: 'text', nullable: true)]
 #[Encrypted]
@@ -93,8 +95,8 @@ final class ContactDetails
 Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead:
 
 ```php
-use SpecShaper\EncryptBundle\Attribute\BlindIndex;
-use SpecShaper\EncryptBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
 
 #[ORM\Column(type: 'text')]
 #[Encrypted]
@@ -108,7 +110,7 @@ private ?string $emailLookupHash = null;
 Create the same hash when querying:
 
 ```php
-use SpecShaper\EncryptBundle\Hashers\BlindIndexHasherInterface;
+use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
 
 $hash = $blindIndexHasher->hash($email, BlindIndex::NORMALIZE_LOWERCASE);
 $user = $repository->findOneBy(['emailLookupHash' => $hash]);
@@ -128,11 +130,11 @@ bin/console encrypt:blind-index --batch-size=500
 Change the current key and key ID, then retain old keys under `decryption_keys`:
 
 ```yaml
-spec_shaper_encrypt:
-    encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY_2026)%'
+doctrine_encryption:
+    encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY_2026)%'
     key_id: '2026'
     decryption_keys:
-        '2025': '%env(SPEC_SHAPER_ENCRYPT_KEY_2025)%'
+        '2025': '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY_2025)%'
 ```
 
 Back up the database, inspect the operation, and rotate in batches:
@@ -158,8 +160,8 @@ Association identifiers are rejected because they cannot be updated safely by th
 ## Multiple Doctrine connections
 
 ```yaml
-spec_shaper_encrypt:
-    encrypt_key: '%env(SPEC_SHAPER_ENCRYPT_KEY)%'
+doctrine_encryption:
+    encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
     connections: ['default', 'tenant']
 ```
 
@@ -178,9 +180,9 @@ Decrypting in templates increases the number of places where plaintext exists. P
 `KeyProviderInterface` is the extension point for Vault, KMS, HSM, or another secret source. It returns binary 32-byte keys and supports lookup by ciphertext key ID. Register the implementation as a service and configure it directly:
 
 ```yaml
-spec_shaper_encrypt:
+doctrine_encryption:
     key_provider_service: 'App\\Encryption\\KmsKeyProvider'
-    blind_index_key: '%env(SPEC_SHAPER_BLIND_INDEX_KEY)%'
+    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
 ```
 
 Likewise, `encryptor_service` accepts any registered `EncryptorInterface` service with arbitrary injected dependencies. `encryptor_class` remains available as a deprecated compatibility path for classes using the historical event-dispatcher constructor.
@@ -194,17 +196,3 @@ Likewise, `encryptor_service` accepts any registered `EncryptorInterface` servic
 - Test restoration and rotation on a copy of production data before operating on production.
 
 See [UPGRADE.md](UPGRADE.md) before upgrading an existing installation and [SECURITY.md](SECURITY.md) for vulnerability reporting.
-
-## Development
-
-```bash
-composer test
-composer analyse
-composer cs:check
-composer rector:check
-composer audit
-```
-
-## License
-
-MIT. See [LICENSE](LICENSE).

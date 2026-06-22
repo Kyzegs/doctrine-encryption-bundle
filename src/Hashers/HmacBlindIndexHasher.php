@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Hashers;
+namespace Kyzegs\DoctrineEncryptionBundle\Hashers;
 
-use SpecShaper\EncryptBundle\Attribute\BlindIndex;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 
 final readonly class HmacBlindIndexHasher implements BlindIndexHasherInterface
 {

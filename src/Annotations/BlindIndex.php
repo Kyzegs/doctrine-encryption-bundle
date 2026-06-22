@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Annotations;
+namespace Kyzegs\DoctrineEncryptionBundle\Annotations;
 
-/** @deprecated Use SpecShaper\EncryptBundle\Attribute\BlindIndex. */
+/** @deprecated Use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex. */
 #[\Attribute(\Attribute::TARGET_PROPERTY)]
-class BlindIndex extends \SpecShaper\EncryptBundle\Attribute\BlindIndex
+class BlindIndex extends \Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex
 {
 }

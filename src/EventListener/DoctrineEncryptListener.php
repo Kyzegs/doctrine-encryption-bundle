@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\EventListener;
+namespace Kyzegs\DoctrineEncryptionBundle\EventListener;
 
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\Persistence\Event\LifecycleEventArgs;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexMetadataProvider;
-use SpecShaper\EncryptBundle\BlindIndex\BlindIndexUpdater;
-use SpecShaper\EncryptBundle\Encryptors\EncryptorInterface;
-use SpecShaper\EncryptBundle\Exception\EncryptException;
-use SpecShaper\EncryptBundle\Mapping\EncryptedField;
-use SpecShaper\EncryptBundle\Mapping\EncryptedFieldMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedField;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedFieldMetadataProvider;
 
 class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
 {

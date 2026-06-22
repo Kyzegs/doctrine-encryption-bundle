@@ -1,11 +1,10 @@
 {
-    "name" : "specshaper/encrypt-bundle",
+    "name" : "kyzegs/doctrine-encryption-bundle",
     "type" : "symfony-bundle",
-    "description" : "Bundle provides a service for encrypting values via attribute.",
-    "homepage": "https://github.com/mogilvie/EncryptBundle",
+    "description" : "Doctrine field encryption and blind indexes for Symfony applications.",
+    "homepage": "https://github.com/kyzegs/doctrine-encryption-bundle",
     "authors" : [{
-        "name" : "Mark Ogilvie",
-        "email" : "mark.ogilvie@parolla.ie"
+        "name" : "Kyzegs"
     }],
     "keywords" : [
         "symfony", "doctrine", "encryption", "blind index"
@@ -33,12 +32,12 @@
     },
     "autoload": {
         "psr-4": {
-            "SpecShaper\\EncryptBundle\\": "src/"
+            "Kyzegs\\DoctrineEncryptionBundle\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "SpecShaper\\EncryptBundle\\Tests\\": "tests/"
+            "Kyzegs\\DoctrineEncryptionBundle\\Tests\\": "tests/"
         }
     },
     "scripts": {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Mapping;
+namespace Kyzegs\DoctrineEncryptionBundle\Mapping;
 
 final readonly class EncryptedField
 {

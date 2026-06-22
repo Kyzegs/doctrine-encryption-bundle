@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Key;
+namespace Kyzegs\DoctrineEncryptionBundle\Key;
 
-use SpecShaper\EncryptBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 
 final class StaticKeyProvider implements KeyProviderInterface
 {

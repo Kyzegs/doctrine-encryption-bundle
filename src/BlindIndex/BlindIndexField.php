@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\BlindIndex;
+namespace Kyzegs\DoctrineEncryptionBundle\BlindIndex;
 
 final readonly class BlindIndexField
 {

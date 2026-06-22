@@ -8,9 +8,9 @@ declare(strict_types=1);
  * Time: 22:55.
  */
 
-namespace SpecShaper\EncryptBundle\Tests\Unit\Encryptors;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Encryptors;
 
-use SpecShaper\EncryptBundle\Encryptors\AesCbcEncryptor;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\AesCbcEncryptor;
 use Symfony\Component\EventDispatcher\EventDispatcher;
 
 class AesCbcEncryptorTest extends \PHPUnit\Framework\TestCase

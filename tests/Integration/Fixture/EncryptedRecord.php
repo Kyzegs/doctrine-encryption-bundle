@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace SpecShaper\EncryptBundle\Tests\Integration\Fixture;
+namespace Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture;
 
 use Doctrine\ORM\Mapping as ORM;
-use SpecShaper\EncryptBundle\Attribute\BlindIndex;
-use SpecShaper\EncryptBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
 
 #[ORM\Entity]
 #[ORM\Table(name: 'encrypted_record')]
