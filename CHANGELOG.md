@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add a tested Rector set and upgrade guide for migrating the complete public PHP API from `specshaper/encrypt-bundle`.
 - Make versioned AES-256-GCM authenticated encryption the default while retaining legacy CBC/GCM reads.
 - Add key IDs, retired decryption keys, a key-provider interface, and the `rotate` maintenance operation.
 - Store associated-data context in the ciphertext envelope so mapped field renames remain decryptable.

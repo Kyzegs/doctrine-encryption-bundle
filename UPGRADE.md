@@ -1,5 +1,64 @@
 # Upgrade guide
 
+## Migrating from `specshaper/encrypt-bundle`
+
+The bundled Rector set migrates the complete public PHP API from
+[`mogilvie/EncryptBundle`](https://github.com/mogilvie/EncryptBundle). It updates imports, fully-qualified names,
+type declarations, attributes, inheritance, `::class` references, and PHPDoc class references. The legacy
+`Annotations\Encrypted` marker is intentionally migrated to the modern `Attribute\Encrypted` class.
+
+Back up the encryption key and the old YAML file first. Replace the package without running Symfony's Composer
+scripts until the PHP and configuration migration is complete:
+
+```console
+composer remove specshaper/encrypt-bundle --no-scripts
+composer require kyzegs/doctrine-encryption-bundle --no-scripts
+composer require --dev rector/rector --no-scripts
+```
+
+Add the migration set to the application's `rector.php`:
+
+```php
+use Rector\Config\RectorConfig;
+use Kyzegs\DoctrineEncryptionBundle\Rector\Set\DoctrineEncryptionSetList;
+
+return RectorConfig::configure()
+    ->withPaths([__DIR__.'/src', __DIR__.'/tests', __DIR__.'/config/bundles.php'])
+    ->withSets([
+        DoctrineEncryptionSetList::MIGRATE_FROM_SPEC_SHAPER_ENCRYPT_BUNDLE,
+    ]);
+```
+
+Run Rector and review the changes:
+
+```console
+vendor/bin/rector process
+```
+
+Rector only edits PHP. If the old bundle is registered in `config/bundles.php`, including that file in
+`withPaths()` replaces `SpecShaperEncryptBundle` with `DoctrineEncryptionBundle` automatically.
+
+### Configuration and Symfony Flex
+
+Flex recipes are useful for a fresh installation, but deliberately do not overwrite an existing application's
+configuration. A recipe therefore cannot safely migrate `config/packages/spec_shaper_encrypt.yaml` or its secret.
+Move the values into `config/packages/doctrine_encryption.yaml` and change the root key:
+
+```yaml
+doctrine_encryption:
+    encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
+    key_id: 'default'
+```
+
+Rename the environment variable in `.env.local` or the deployment secret store. Existing encryption material must
+be preserved: changing the key makes existing ciphertext unreadable. The old options `is_disabled`, `connections`,
+`listener_class`, `encryptor_class`, `annotation_classes`, and `enable_twig` keep the same names. The old `method`
+option has been removed. See the sections below for the new key-provider, rotation, and blind-index options.
+
+The recommended Flex integration is a recipe in `symfony/recipes-contrib`, maintained alongside releases of this
+bundle. It should register `DoctrineEncryptionBundle` and create a minimal `doctrine_encryption.yaml` for new
+installs; it should not attempt to delete or rewrite the legacy configuration.
+
 ## Upgrading to the modernized release
 
 1. Back up the database and every active encryption key.
