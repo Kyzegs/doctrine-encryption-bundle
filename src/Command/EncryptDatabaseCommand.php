@@ -8,6 +8,8 @@ use Doctrine\DBAL\Connection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ManagerRegistry;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptedJsonCodec;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
 use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedFieldMetadataProvider;
@@ -24,11 +26,15 @@ final class EncryptDatabaseCommand extends Command
 {
     private const DIRECTIONS = ['encrypt', 'decrypt', 'rotate'];
 
+    private readonly EncryptedJsonCodec $encryptedJsonCodec;
+
     public function __construct(
         private readonly EncryptorInterface $encryptor,
         private readonly ManagerRegistry $registry,
         private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider,
+        ?EncryptedJsonCodec $encryptedJsonCodec = null,
     ) {
+        $this->encryptedJsonCodec = $encryptedJsonCodec ?? new EncryptedJsonCodec($encryptor);
         parent::__construct();
     }
 
@@ -96,7 +102,7 @@ final class EncryptDatabaseCommand extends Command
     }
 
     /**
-     * @return list<array{name: string, fields: array<string, string>, identifiers: array<string, string>}>
+     * @return list<array{name: string, fields: array<string, array{column: string, format: string}>, identifiers: array<string, string>}>
      */
     private function collectTables(EntityManagerInterface $entityManager): array
     {
@@ -108,7 +114,7 @@ final class EncryptDatabaseCommand extends Command
                 continue;
             }
 
-            $encryptedFields = array_keys($this->encryptedFieldMetadataProvider->getForClassMetadata($metadata));
+            $encryptedFields = $this->encryptedFieldMetadataProvider->getForClassMetadata($metadata);
             if ([] === $encryptedFields) {
                 continue;
             }
@@ -125,7 +131,7 @@ final class EncryptDatabaseCommand extends Command
                 throw new EncryptException(sprintf('Entity "%s" has no mapped identifier.', $metadata->getName()));
             }
 
-            foreach ($encryptedFields as $field) {
+            foreach ($encryptedFields as $field => $encryptedField) {
                 $mapping = $metadata->getFieldMapping($field);
                 $declaringClass = $mapping['inherited'] ?? $mapping['declared'] ?? $metadata->getName();
                 $tableMetadata = $entityManager->getClassMetadata($declaringClass);
@@ -136,7 +142,10 @@ final class EncryptDatabaseCommand extends Command
                 $tableName = $tableMetadata->getTableName();
                 $key = $tableName."\0".implode(',', $identifiers);
                 $tables[$key] ??= ['name' => $tableName, 'fields' => [], 'identifiers' => $identifiers];
-                $tables[$key]['fields'][$field] = $metadata->getColumnName($field);
+                $tables[$key]['fields'][$field] = [
+                    'column' => $metadata->getColumnName($field),
+                    'format' => $encryptedField->getFormat(),
+                ];
             }
         }
 
@@ -144,7 +153,7 @@ final class EncryptDatabaseCommand extends Command
     }
 
     /**
-     * @param array{name: string, fields: array<string, string>, identifiers: array<string, string>} $table
+     * @param array{name: string, fields: array<string, array{column: string, format: string}>, identifiers: array<string, string>} $table
      */
     private function processTable(Connection $connection, array $table, string $direction, int $batchSize, bool $dryRun): int
     {
@@ -161,10 +170,10 @@ final class EncryptDatabaseCommand extends Command
             $selections[] = $platform->quoteIdentifier($column).' AS '.$platform->quoteIdentifier($alias);
             $ordering[] = $platform->quoteIdentifier($column);
         }
-        foreach ($table['fields'] as $field => $column) {
+        foreach ($table['fields'] as $field => $fieldMapping) {
             $alias = '__encrypted_'.count($fieldAliases);
-            $fieldAliases[$alias] = ['field' => $field, 'column' => $column];
-            $selections[] = $platform->quoteIdentifier($column).' AS '.$platform->quoteIdentifier($alias);
+            $fieldAliases[$alias] = ['field' => $field, 'column' => $fieldMapping['column'], 'format' => $fieldMapping['format']];
+            $selections[] = $platform->quoteIdentifier($fieldMapping['column']).' AS '.$platform->quoteIdentifier($alias);
         }
 
         $baseQuery = sprintf('SELECT %s FROM %s ORDER BY %s', implode(', ', $selections), $quotedTable, implode(', ', $ordering));
@@ -206,9 +215,9 @@ final class EncryptDatabaseCommand extends Command
     }
 
     /**
-     * @param array<string, mixed>                                $row
-     * @param array<string, array{field: string, column: string}> $fieldAliases
-     * @param array<string, string>                               $identifierAliases
+     * @param array<string, mixed>                                                $row
+     * @param array<string, array{field: string, column: string, format: string}> $fieldAliases
+     * @param array<string, string>                                               $identifierAliases
      */
     private function updateRow(Connection $connection, string $quotedTable, array $row, array $fieldAliases, array $identifierAliases, string $direction): void
     {
@@ -219,12 +228,14 @@ final class EncryptDatabaseCommand extends Command
 
         foreach ($fieldAliases as $alias => $mapping) {
             $value = $row[$alias];
-            $newValue = match ($direction) {
-                'encrypt' => $this->encryptor->encrypt($value, $mapping['field']),
-                'decrypt' => $this->encryptor->decrypt($value, $mapping['field']),
-                'rotate' => $this->encryptor->encrypt($this->encryptor->decrypt($value, $mapping['field']), $mapping['field']),
-                default => throw new \LogicException(sprintf('Unsupported direction "%s".', $direction)),
-            };
+            $newValue = Encrypted::FORMAT_JSON === $mapping['format']
+                ? $this->transformJsonValue($value, $mapping['field'], $direction)
+                : match ($direction) {
+                    'encrypt' => $this->encryptor->encrypt($value, $mapping['field']),
+                    'decrypt' => $this->encryptor->decrypt($value, $mapping['field']),
+                    'rotate' => $this->encryptor->encrypt($this->encryptor->decrypt($value, $mapping['field']), $mapping['field']),
+                    default => throw new \LogicException(sprintf('Unsupported direction "%s".', $direction)),
+                };
             $parameter = 'field_'.count($parameters);
             $assignments[] = $platform->quoteIdentifier($mapping['column']).' = :'.$parameter;
             $parameters[$parameter] = $newValue;
@@ -240,5 +251,23 @@ final class EncryptDatabaseCommand extends Command
             sprintf('UPDATE %s SET %s WHERE %s', $quotedTable, implode(', ', $assignments), implode(' AND ', $conditions)),
             $parameters,
         );
+    }
+
+    private function transformJsonValue(mixed $value, string $field, string $direction): ?string
+    {
+        if (null === $value) {
+            return null;
+        }
+
+        $context = sprintf('database field "%s"', $field);
+        $decoded = $this->encryptedJsonCodec->decodeJson($value, $context);
+        $transformed = match ($direction) {
+            'encrypt' => $this->encryptedJsonCodec->encrypt($decoded, $field, $context),
+            'decrypt' => $this->encryptedJsonCodec->decrypt($decoded, $field, $context),
+            'rotate' => $this->encryptedJsonCodec->encrypt($this->encryptedJsonCodec->decrypt($decoded, $field, $context), $field, $context),
+            default => throw new \LogicException(sprintf('Unsupported direction "%s".', $direction)),
+        };
+
+        return $this->encryptedJsonCodec->encodeJson($transformed, $context);
     }
 }

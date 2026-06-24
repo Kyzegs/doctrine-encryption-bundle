@@ -115,6 +115,105 @@ final class DoctrineEncryptionTest extends KernelTestCase
         self::assertStringStartsWith('SSEB1:gcm:integration:', $embeddedEncrypted);
     }
 
+    public function testJsonArraysStayPlaintextInEntityAndEncryptedInDatabase(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = 'Secret';
+        $record->mappedSecret = 'Mapped Secret';
+        $record->contact = new EncryptedContact('Embedded Secret');
+        $record->metadata = ['ticket' => 42, 'labels' => ['private', 'urgent']];
+        $record->mappedMetadata = ['provider' => ['id' => 'abc']];
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+
+        self::assertSame(['ticket' => 42, 'labels' => ['private', 'urgent']], $record->metadata);
+        self::assertSame(['provider' => ['id' => 'abc']], $record->mappedMetadata);
+
+        $raw = $this->entityManager->getConnection()->fetchAssociative('SELECT metadata, mapped_metadata FROM encrypted_record WHERE id = ?', [$record->id]);
+        self::assertIsArray($raw);
+        self::assertIsString($raw['metadata']);
+        self::assertIsString($raw['mapped_metadata']);
+        $metadataWrapper = json_decode($raw['metadata'], true, 512, \JSON_THROW_ON_ERROR);
+        $mappedWrapper = json_decode($raw['mapped_metadata'], true, 512, \JSON_THROW_ON_ERROR);
+        self::assertSame(1, $metadataWrapper['__doctrine_encrypted']['version']);
+        self::assertStringEndsWith('<ENC>', $metadataWrapper['__doctrine_encrypted']['ciphertext']);
+        self::assertSame(1, $mappedWrapper['__doctrine_encrypted']['version']);
+
+        $id = $record->id;
+        $this->entityManager->clear();
+        $loaded = $this->entityManager->find(EncryptedRecord::class, $id);
+        self::assertInstanceOf(EncryptedRecord::class, $loaded);
+        self::assertSame(['ticket' => 42, 'labels' => ['private', 'urgent']], $loaded->metadata);
+        self::assertSame(['provider' => ['id' => 'abc']], $loaded->mappedMetadata);
+
+        $loaded->metadata = ['updated' => true];
+        $this->entityManager->flush();
+        self::assertSame(['updated' => true], $loaded->metadata);
+    }
+
+    public function testPlaintextJsonRemainsReadableAndEncryptsAfterChange(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = 'Secret';
+        $record->mappedSecret = 'Mapped Secret';
+        $record->contact = new EncryptedContact('Embedded Secret');
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+
+        $this->entityManager->getConnection()->update('encrypted_record', ['metadata' => json_encode(['legacy' => true], \JSON_THROW_ON_ERROR)], ['id' => $record->id]);
+        $id = $record->id;
+        $this->entityManager->clear();
+
+        $loaded = $this->entityManager->find(EncryptedRecord::class, $id);
+        self::assertInstanceOf(EncryptedRecord::class, $loaded);
+        self::assertSame(['legacy' => true], $loaded->metadata);
+
+        $loaded->secret = 'Changed Secret';
+        $this->entityManager->flush();
+        self::assertSame(json_encode(['legacy' => true], \JSON_THROW_ON_ERROR), $this->entityManager->getConnection()->fetchOne('SELECT metadata FROM encrypted_record WHERE id = ?', [$id]));
+
+        $loaded->metadata = ['legacy' => false];
+        $this->entityManager->flush();
+        $raw = $this->entityManager->getConnection()->fetchOne('SELECT metadata FROM encrypted_record WHERE id = ?', [$id]);
+        self::assertIsString($raw);
+        self::assertArrayHasKey('__doctrine_encrypted', json_decode($raw, true, 512, \JSON_THROW_ON_ERROR));
+    }
+
+    public function testDatabaseCommandTransformsJsonArrays(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = 'Secret';
+        $record->mappedSecret = 'Mapped Secret';
+        $record->contact = new EncryptedContact('Embedded Secret');
+        $record->metadata = ['rotate' => ['me']];
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+
+        $command = self::getContainer()->get(EncryptDatabaseCommand::class);
+        self::assertInstanceOf(EncryptDatabaseCommand::class, $command);
+        $tester = new CommandTester($command);
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['direction' => 'decrypt', '--force' => true]));
+        $plaintext = $this->entityManager->getConnection()->fetchOne('SELECT metadata FROM encrypted_record');
+        self::assertIsString($plaintext);
+        self::assertSame(['rotate' => ['me']], json_decode($plaintext, true, 512, \JSON_THROW_ON_ERROR));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['direction' => 'encrypt', '--force' => true]));
+        $encrypted = $this->entityManager->getConnection()->fetchOne('SELECT metadata FROM encrypted_record');
+        self::assertIsString($encrypted);
+        self::assertArrayHasKey('__doctrine_encrypted', json_decode($encrypted, true, 512, \JSON_THROW_ON_ERROR));
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['direction' => 'rotate', '--force' => true]));
+        $rotated = $this->entityManager->getConnection()->fetchOne('SELECT metadata FROM encrypted_record');
+        self::assertIsString($rotated);
+        self::assertNotSame($encrypted, $rotated);
+
+        self::assertSame(Command::SUCCESS, $tester->execute(['direction' => 'decrypt', '--force' => true]));
+        $decrypted = $this->entityManager->getConnection()->fetchOne('SELECT metadata FROM encrypted_record');
+        self::assertIsString($decrypted);
+        self::assertSame(['rotate' => ['me']], json_decode($decrypted, true, 512, \JSON_THROW_ON_ERROR));
+    }
+
     public function testOptionalTwigExtensionIsRegistered(): void
     {
         $extension = self::getContainer()->get(EncryptExtension::class);

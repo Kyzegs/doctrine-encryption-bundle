@@ -9,6 +9,7 @@ use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
 use Kyzegs\DoctrineEncryptionBundle\Command\GenKeyCommand;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorFactory;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptedJsonCodec;
 use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
 use Kyzegs\DoctrineEncryptionBundle\Hashers\HmacBlindIndexHasher;
 use Kyzegs\DoctrineEncryptionBundle\Key\KeyProviderInterface;
@@ -45,11 +46,12 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(BlindIndexMetadataProvider::class);
     $services->set(BlindIndexUpdater::class)->args([service(BlindIndexHasherInterface::class)]);
+    $services->set(EncryptedJsonCodec::class)->args([service(EncryptorInterface::class)]);
     $services->set(EncryptedFieldMetadataProvider::class)
         ->args([param('doctrine_encryption.annotation_classes')]);
 
     $services->set(EncryptDatabaseCommand::class)
-        ->args([service(EncryptorInterface::class), service('doctrine'), service(EncryptedFieldMetadataProvider::class)])
+        ->args([service(EncryptorInterface::class), service('doctrine'), service(EncryptedFieldMetadataProvider::class), service(EncryptedJsonCodec::class)])
         ->tag('console.command');
 
     $services->set(BlindIndexDatabaseCommand::class)

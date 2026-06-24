@@ -11,6 +11,7 @@ use Doctrine\Persistence\Mapping\RuntimeReflectionService;
 use Kyzegs\DoctrineEncryptionBundle\Annotations\Encrypted;
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptedJsonCodec;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
 use Kyzegs\DoctrineEncryptionBundle\EventListener\DoctrineEncryptListener;
 use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
@@ -84,7 +85,8 @@ class DoctrineEncryptListenerTest extends TestCase
             false,
             new BlindIndexMetadataProvider(),
             new BlindIndexUpdater($this->createMock(BlindIndexHasherInterface::class)),
-            new EncryptedFieldMetadataProvider([Encrypted::class])
+            new EncryptedFieldMetadataProvider([Encrypted::class]),
+            new EncryptedJsonCodec($encryptor),
         );
     }
 

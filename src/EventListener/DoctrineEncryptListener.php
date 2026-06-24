@@ -7,8 +7,10 @@ namespace Kyzegs\DoctrineEncryptionBundle\EventListener;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Event\OnFlushEventArgs;
 use Doctrine\Persistence\Event\LifecycleEventArgs;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptedJsonCodec;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\EncryptorInterface;
 use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Kyzegs\DoctrineEncryptionBundle\Mapping\EncryptedField;
@@ -21,8 +23,10 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     /** @var array<class-string, array<string, EncryptedField>> */
     protected array $encryptedFieldCache = [];
 
-    /** @var array<int, array<string, scalar|null>> */
+    /** @var array<int, array<string, mixed>> */
     private array $rawValues = [];
+
+    private readonly EncryptedJsonCodec $encryptedJsonCodec;
 
     public function __construct(
         private readonly EncryptorInterface $encryptor,
@@ -30,7 +34,9 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
         private readonly BlindIndexMetadataProvider $blindIndexMetadataProvider,
         private readonly BlindIndexUpdater $blindIndexUpdater,
         private readonly EncryptedFieldMetadataProvider $encryptedFieldMetadataProvider,
+        ?EncryptedJsonCodec $encryptedJsonCodec = null,
     ) {
+        $this->encryptedJsonCodec = $encryptedJsonCodec ?? new EncryptedJsonCodec($encryptor);
     }
 
     public function getEncryptor(): EncryptorInterface
@@ -118,6 +124,34 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
 
         foreach ($properties as $field => $property) {
             $value = $property->getValue($entity);
+
+            if (Encrypted::FORMAT_JSON === $property->getFormat()) {
+                $context = $entity::class.':'.$field;
+
+                if ($encrypt) {
+                    if (!array_key_exists($field, $changeSet)) {
+                        continue;
+                    }
+
+                    if (null !== $value) {
+                        $property->setValue($entity, $this->encryptedJsonCodec->encrypt($value, $field, $context));
+                        $this->rawValues[$objectId][$field] = $value;
+                    }
+
+                    $unitOfWork->recomputeSingleEntityChangeSet($metadata, $entity);
+                    continue;
+                }
+
+                if (null === $value) {
+                    continue;
+                }
+
+                $decryptedValue = $this->encryptedJsonCodec->decrypt($value, $field, $context);
+                $property->setValue($entity, $decryptedValue);
+                $unitOfWork->setOriginalEntityProperty($objectId, $field, $decryptedValue);
+
+                continue;
+            }
 
             if (is_object($value) || is_array($value) || is_resource($value)) {
                 throw new EncryptException(sprintf('Cannot encrypt a non-scalar value at %s:%s.', $entity::class, $field));

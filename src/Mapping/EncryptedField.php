@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Kyzegs\DoctrineEncryptionBundle\Mapping;
 
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
+
 final readonly class EncryptedField
 {
     /**
@@ -13,6 +15,7 @@ final readonly class EncryptedField
     public function __construct(
         private \Closure $reader,
         private \Closure $writer,
+        private string $format = Encrypted::FORMAT_SCALAR,
     ) {
     }
 
@@ -24,5 +27,10 @@ final readonly class EncryptedField
     public function setValue(object $entity, mixed $value): void
     {
         ($this->writer)($entity, $value);
+    }
+
+    public function getFormat(): string
+    {
+        return $this->format;
     }
 }

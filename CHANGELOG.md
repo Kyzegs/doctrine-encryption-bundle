@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add explicit encrypted array support for Doctrine `json` fields through `#[Encrypted(format: Encrypted::FORMAT_JSON)]` and the `encrypted: json` mapping option.
+- Store JSON ciphertext in an exact, versioned JSON wrapper while retaining reads and maintenance-command migration of plaintext JSON arrays.
+
 ## 1.0.0 (2026-06-23) Re-release with modernized features and security improvements
 
 - Add a tested Rector set and upgrade guide for migrating from `specshaper/encrypt-bundle`, including modern blind-index, key-provider, hashing, mapping, and ciphertext-envelope symbols used by downstream forks.

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Kyzegs\DoctrineEncryptionBundle\Mapping;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
+use Kyzegs\DoctrineEncryptionBundle\Attribute\Encrypted;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 
 final readonly class EncryptedFieldMetadataProvider
 {
@@ -28,8 +30,20 @@ final readonly class EncryptedFieldMetadataProvider
             $mapping = $classMetadata->getFieldMapping($fieldName);
             $attributeProperty = $this->getOriginalProperty($classMetadata, $fieldName, $mapping);
 
-            if (!$this->hasEncryptedAttribute($attributeProperty) && !$this->hasEncryptedMappingOption($mapping)) {
+            $attributeFormat = $this->getAttributeFormat($attributeProperty);
+            $mappingFormat = $this->getMappingFormat($mapping);
+
+            if (null === $attributeFormat && null === $mappingFormat) {
                 continue;
+            }
+
+            if (null !== $attributeFormat && null !== $mappingFormat && $attributeFormat !== $mappingFormat) {
+                throw new EncryptException(sprintf('Encrypted field "%s:%s" declares conflicting formats "%s" and "%s".', $classMetadata->getName(), $fieldName, $attributeFormat, $mappingFormat));
+            }
+
+            $format = $attributeFormat ?? $mappingFormat;
+            if (Encrypted::FORMAT_JSON === $format && 'json' !== $this->getMappingValue($mapping, 'type')) {
+                throw new EncryptException(sprintf('Encrypted JSON field "%s:%s" must use Doctrine type "json".', $classMetadata->getName(), $fieldName));
             }
 
             $accessor = $this->getAccessor($classMetadata, $fieldName);
@@ -40,6 +54,7 @@ final readonly class EncryptedFieldMetadataProvider
             $encryptedFields[$fieldName] = new EncryptedField(
                 $accessor->getValue(...),
                 $accessor->setValue(...),
+                $format,
             );
         }
 
@@ -48,13 +63,7 @@ final readonly class EncryptedFieldMetadataProvider
 
     public function hasEncryptedAttribute(\ReflectionProperty $property): bool
     {
-        foreach ($property->getAttributes() as $attribute) {
-            if (in_array($attribute->getName(), $this->attributeClasses, true)) {
-                return true;
-            }
-        }
-
-        return false;
+        return null !== $this->getAttributeFormat($property);
     }
 
     /** @param ClassMetadata<object> $classMetadata */
@@ -93,12 +102,44 @@ final readonly class EncryptedFieldMetadataProvider
         return is_array($mapping) ? ($mapping[$key] ?? null) : ($mapping->$key ?? null);
     }
 
-    private function hasEncryptedMappingOption(mixed $mapping): bool
+    private function getAttributeFormat(\ReflectionProperty $property): ?string
+    {
+        foreach ($property->getAttributes() as $attribute) {
+            if (!in_array($attribute->getName(), $this->attributeClasses, true)) {
+                continue;
+            }
+
+            $instance = $attribute->newInstance();
+
+            return $instance instanceof Encrypted ? $instance->format : Encrypted::FORMAT_SCALAR;
+        }
+
+        return null;
+    }
+
+    private function getMappingFormat(mixed $mapping): ?string
     {
         $options = is_array($mapping) ? ($mapping['options'] ?? []) : ($mapping->options ?? []);
+        if (!array_key_exists(self::OPTION_NAME, $options)) {
+            return null;
+        }
+
         $value = $options[self::OPTION_NAME] ?? false;
 
-        return in_array($value, [true, 1, '1'], true)
-            || (is_string($value) && 'true' === strtolower($value));
+        if (in_array($value, [true, 1, '1'], true) || (is_string($value) && 'true' === strtolower($value))) {
+            return Encrypted::FORMAT_SCALAR;
+        }
+
+        if (is_string($value) && Encrypted::FORMAT_JSON === strtolower($value)) {
+            return Encrypted::FORMAT_JSON;
+        }
+
+        if (in_array($value, [false, null, 0, '0'], true) || (is_string($value) && 'false' === strtolower($value))) {
+            return null;
+        }
+
+        $description = is_scalar($value) ? var_export($value, true) : get_debug_type($value);
+
+        throw new EncryptException(sprintf('Unsupported encrypted field mapping format %s.', $description));
     }
 }

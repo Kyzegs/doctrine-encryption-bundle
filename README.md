@@ -80,6 +80,41 @@ External XML, YAML, or PHP Doctrine mappings can opt in without modifying the en
 
 The equivalent field option is `encrypted: true`.
 
+### Encrypting JSON arrays
+
+Doctrine `json` fields can encrypt array values without exposing serialization or ciphertext wrappers in entities. Select JSON format explicitly:
+
+```php
+#[ORM\Column(type: 'json', nullable: true)]
+#[Encrypted(format: Encrypted::FORMAT_JSON)]
+private ?array $metadata = null;
+```
+
+External XML, YAML, or PHP mappings use `encrypted: json` instead of `encrypted: true`:
+
+```xml
+<field name="metadata" type="json">
+    <options>
+        <option name="encrypted">json</option>
+    </options>
+</field>
+```
+
+Only arrays and `null` are accepted. Objects, resources, and scalar JSON values are rejected so hydration always preserves the declared array contract. Plaintext arrays already stored in a JSON column remain readable and are encrypted when changed or when processed by `encrypt:database encrypt`.
+
+Encrypted JSON is stored as a versioned wrapper:
+
+```json
+{
+  "__doctrine_encrypted": {
+    "version": 1,
+    "ciphertext": "versioned-ciphertext-envelope<ENC>"
+  }
+}
+```
+
+Wrapper detection requires exactly these keys, supported version `1`, and the `<ENC>` ciphertext marker. Other arrays containing `__doctrine_encrypted` remain plaintext. The exact wrapper shape is reserved and must not be used as application data.
+
 Encrypted scalar properties inside Doctrine embeddables are supported. Mark the embeddable property normally; bundle uses Doctrine's nested field path for encryption, decryption, change tracking, and database maintenance:
 
 ```php
@@ -150,7 +185,7 @@ Remove a retired key only after every value using its key ID has been rotated an
 
 ## Database maintenance
 
-The maintenance command supports `encrypt`, `decrypt`, and `rotate`, custom and composite scalar identifiers, quoted identifiers, transactions, batches, confirmation, and dry runs:
+The maintenance command supports scalar and encrypted JSON fields with `encrypt`, `decrypt`, and `rotate`, custom and composite scalar identifiers, quoted identifiers, transactions, batches, confirmation, and dry runs:
 
 ```bash
 bin/console encrypt:database encrypt --dry-run

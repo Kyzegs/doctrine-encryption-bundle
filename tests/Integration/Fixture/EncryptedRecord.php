@@ -24,6 +24,15 @@ class EncryptedRecord
     #[ORM\Column(name: 'mapped_secret', type: 'string', length: 512, options: ['encrypted' => true])]
     public string $mappedSecret;
 
+    /** @var array<mixed>|null */
+    #[ORM\Column(type: 'json', nullable: true)]
+    #[Encrypted(format: Encrypted::FORMAT_JSON)]
+    public ?array $metadata = null;
+
+    /** @var array<mixed>|null */
+    #[ORM\Column(name: 'mapped_metadata', type: 'json', nullable: true, options: ['encrypted' => 'json'])]
+    public ?array $mappedMetadata = null;
+
     #[ORM\Embedded(class: EncryptedContact::class, columnPrefix: 'contact_')]
     public EncryptedContact $contact;
 
