@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 (2026-06-24) Encrypted JSON arrays and typed internals
 
 - Add explicit encrypted array support for Doctrine `json` fields through `#[Encrypted(format: Encrypted::FORMAT_JSON)]` and the `encrypted: json` mapping option.
 - Store JSON ciphertext in an exact, versioned JSON wrapper while retaining reads and maintenance-command migration of plaintext JSON arrays.
