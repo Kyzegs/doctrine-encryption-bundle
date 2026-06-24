@@ -24,8 +24,6 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 #[AsCommand(name: 'encrypt:database', description: 'Encrypts, decrypts, or rotates encrypted database columns')]
 final class EncryptDatabaseCommand extends Command
 {
-    private const DIRECTIONS = ['encrypt', 'decrypt', 'rotate'];
-
     private readonly EncryptedJsonCodec $encryptedJsonCodec;
 
     public function __construct(
@@ -52,9 +50,10 @@ final class EncryptDatabaseCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $io = new SymfonyStyle($input, $output);
-        $direction = (string) $input->getArgument('direction');
-        if (!in_array($direction, self::DIRECTIONS, true)) {
-            $io->error(sprintf('Invalid direction "%s". Choose encrypt, decrypt, or rotate.', $direction));
+        $operationName = (string) $input->getArgument('direction');
+        $operation = DatabaseOperation::tryFrom($operationName);
+        if (null === $operation) {
+            $io->error(sprintf('Invalid direction "%s". Choose encrypt, decrypt, or rotate.', $operationName));
 
             return Command::INVALID;
         }
@@ -80,7 +79,7 @@ final class EncryptDatabaseCommand extends Command
         }
 
         $dryRun = (bool) $input->getOption('dry-run');
-        $io->title(sprintf('%s encrypted database fields%s', ucfirst($direction), $dryRun ? ' (dry run)' : ''));
+        $io->title(sprintf('%s encrypted database fields%s', ucfirst($operation->value), $dryRun ? ' (dry run)' : ''));
         $io->writeln(sprintf('%d table(s) will be processed.', count($tables)));
 
         if (!$dryRun && !$input->getOption('force') && $input->isInteractive() && !$io->confirm('Backups are strongly recommended. Continue?', false)) {
@@ -91,9 +90,9 @@ final class EncryptDatabaseCommand extends Command
 
         $processed = 0;
         foreach ($tables as $table) {
-            $tableProcessed = $this->processTable($entityManager->getConnection(), $table, $direction, $batchSize, $dryRun);
+            $tableProcessed = $this->processTable($entityManager->getConnection(), $table, $operation, $batchSize, $dryRun);
             $processed += $tableProcessed;
-            $io->writeln(sprintf('Processed %s (%d rows).', $table['name'], $tableProcessed));
+            $io->writeln(sprintf('Processed %s (%d rows).', $table->name, $tableProcessed));
         }
 
         $io->success(sprintf('%d row(s) processed%s.', $processed, $dryRun ? '; no changes written' : ''));
@@ -101,9 +100,7 @@ final class EncryptDatabaseCommand extends Command
         return Command::SUCCESS;
     }
 
-    /**
-     * @return list<array{name: string, fields: array<string, array{column: string, format: string}>, identifiers: array<string, string>}>
-     */
+    /** @return list<EncryptedDatabaseTable> */
     private function collectTables(EntityManagerInterface $entityManager): array
     {
         $tables = [];
@@ -141,39 +138,37 @@ final class EncryptDatabaseCommand extends Command
 
                 $tableName = $tableMetadata->getTableName();
                 $key = $tableName."\0".implode(',', $identifiers);
-                $tables[$key] ??= ['name' => $tableName, 'fields' => [], 'identifiers' => $identifiers];
-                $tables[$key]['fields'][$field] = [
-                    'column' => $metadata->getColumnName($field),
-                    'format' => $encryptedField->getFormat(),
-                ];
+                $tables[$key] ??= new EncryptedDatabaseTable($tableName, $identifiers);
+                $tables[$key]->addField(new DatabaseEncryptedField(
+                    field: $field,
+                    column: $metadata->getColumnName($field),
+                    format: $encryptedField->getFormat(),
+                ));
             }
         }
 
         return array_values($tables);
     }
 
-    /**
-     * @param array{name: string, fields: array<string, array{column: string, format: string}>, identifiers: array<string, string>} $table
-     */
-    private function processTable(Connection $connection, array $table, string $direction, int $batchSize, bool $dryRun): int
+    private function processTable(Connection $connection, EncryptedDatabaseTable $table, DatabaseOperation $operation, int $batchSize, bool $dryRun): int
     {
         $platform = $connection->getDatabasePlatform();
-        $quotedTable = $platform->quoteIdentifier($table['name']);
+        $quotedTable = $platform->quoteIdentifier($table->name);
         $selections = [];
         $fieldAliases = [];
         $identifierAliases = [];
         $ordering = [];
 
-        foreach ($table['identifiers'] as $field => $column) {
+        foreach ($table->identifiers as $column) {
             $alias = '__identifier_'.count($identifierAliases);
             $identifierAliases[$alias] = $column;
             $selections[] = $platform->quoteIdentifier($column).' AS '.$platform->quoteIdentifier($alias);
             $ordering[] = $platform->quoteIdentifier($column);
         }
-        foreach ($table['fields'] as $field => $fieldMapping) {
+        foreach ($table->fields() as $fieldMapping) {
             $alias = '__encrypted_'.count($fieldAliases);
-            $fieldAliases[$alias] = ['field' => $field, 'column' => $fieldMapping['column'], 'format' => $fieldMapping['format']];
-            $selections[] = $platform->quoteIdentifier($fieldMapping['column']).' AS '.$platform->quoteIdentifier($alias);
+            $fieldAliases[$alias] = $fieldMapping;
+            $selections[] = $platform->quoteIdentifier($fieldMapping->column).' AS '.$platform->quoteIdentifier($alias);
         }
 
         $baseQuery = sprintf('SELECT %s FROM %s ORDER BY %s', implode(', ', $selections), $quotedTable, implode(', ', $ordering));
@@ -194,7 +189,7 @@ final class EncryptDatabaseCommand extends Command
             try {
                 foreach ($rows as $row) {
                     if (!$dryRun) {
-                        $this->updateRow($connection, $quotedTable, $row, $fieldAliases, $identifierAliases, $direction);
+                        $this->updateRow($connection, $quotedTable, $row, $fieldAliases, $identifierAliases, $operation);
                     }
                     ++$processed;
                 }
@@ -215,11 +210,11 @@ final class EncryptDatabaseCommand extends Command
     }
 
     /**
-     * @param array<string, mixed>                                                $row
-     * @param array<string, array{field: string, column: string, format: string}> $fieldAliases
-     * @param array<string, string>                                               $identifierAliases
+     * @param array<string, mixed>                  $row
+     * @param array<string, DatabaseEncryptedField> $fieldAliases
+     * @param array<string, string>                 $identifierAliases
      */
-    private function updateRow(Connection $connection, string $quotedTable, array $row, array $fieldAliases, array $identifierAliases, string $direction): void
+    private function updateRow(Connection $connection, string $quotedTable, array $row, array $fieldAliases, array $identifierAliases, DatabaseOperation $operation): void
     {
         $platform = $connection->getDatabasePlatform();
         $assignments = [];
@@ -228,16 +223,15 @@ final class EncryptDatabaseCommand extends Command
 
         foreach ($fieldAliases as $alias => $mapping) {
             $value = $row[$alias];
-            $newValue = Encrypted::FORMAT_JSON === $mapping['format']
-                ? $this->transformJsonValue($value, $mapping['field'], $direction)
-                : match ($direction) {
-                    'encrypt' => $this->encryptor->encrypt($value, $mapping['field']),
-                    'decrypt' => $this->encryptor->decrypt($value, $mapping['field']),
-                    'rotate' => $this->encryptor->encrypt($this->encryptor->decrypt($value, $mapping['field']), $mapping['field']),
-                    default => throw new \LogicException(sprintf('Unsupported direction "%s".', $direction)),
+            $newValue = Encrypted::FORMAT_JSON === $mapping->format
+                ? $this->transformJsonValue($value, $mapping->field, $operation)
+                : match ($operation) {
+                    DatabaseOperation::ENCRYPT => $this->encryptor->encrypt($value, $mapping->field),
+                    DatabaseOperation::DECRYPT => $this->encryptor->decrypt($value, $mapping->field),
+                    DatabaseOperation::ROTATE => $this->encryptor->encrypt($this->encryptor->decrypt($value, $mapping->field), $mapping->field),
                 };
             $parameter = 'field_'.count($parameters);
-            $assignments[] = $platform->quoteIdentifier($mapping['column']).' = :'.$parameter;
+            $assignments[] = $platform->quoteIdentifier($mapping->column).' = :'.$parameter;
             $parameters[$parameter] = $newValue;
         }
 
@@ -253,7 +247,7 @@ final class EncryptDatabaseCommand extends Command
         );
     }
 
-    private function transformJsonValue(mixed $value, string $field, string $direction): ?string
+    private function transformJsonValue(mixed $value, string $field, DatabaseOperation $operation): ?string
     {
         if (null === $value) {
             return null;
@@ -261,11 +255,10 @@ final class EncryptDatabaseCommand extends Command
 
         $context = sprintf('database field "%s"', $field);
         $decoded = $this->encryptedJsonCodec->decodeJson($value, $context);
-        $transformed = match ($direction) {
-            'encrypt' => $this->encryptedJsonCodec->encrypt($decoded, $field, $context),
-            'decrypt' => $this->encryptedJsonCodec->decrypt($decoded, $field, $context),
-            'rotate' => $this->encryptedJsonCodec->encrypt($this->encryptedJsonCodec->decrypt($decoded, $field, $context), $field, $context),
-            default => throw new \LogicException(sprintf('Unsupported direction "%s".', $direction)),
+        $transformed = match ($operation) {
+            DatabaseOperation::ENCRYPT => $this->encryptedJsonCodec->encrypt($decoded, $field, $context),
+            DatabaseOperation::DECRYPT => $this->encryptedJsonCodec->decrypt($decoded, $field, $context),
+            DatabaseOperation::ROTATE => $this->encryptedJsonCodec->encrypt($this->encryptedJsonCodec->decrypt($decoded, $field, $context), $field, $context),
         };
 
         return $this->encryptedJsonCodec->encodeJson($transformed, $context);

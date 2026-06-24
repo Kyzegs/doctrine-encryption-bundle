@@ -29,6 +29,11 @@ final class CiphertextEnvelope
     /** @return array{algorithm: string, key_id: string, associated_data: string, payload: string}|null */
     public static function decode(string $ciphertext): ?array
     {
+        return self::decodeValue($ciphertext)?->toArray();
+    }
+
+    public static function decodeValue(string $ciphertext): ?DecodedCiphertextEnvelope
+    {
         if (!str_ends_with($ciphertext, DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)) {
             return null;
         }
@@ -47,12 +52,12 @@ final class CiphertextEnvelope
             throw new EncryptException('The encrypted value contains an invalid key ID.');
         }
 
-        return [
-            'algorithm' => $parts[1],
-            'key_id' => $parts[2],
-            'associated_data' => self::base64UrlDecode($parts[3]),
-            'payload' => self::base64UrlDecode($parts[4]),
-        ];
+        return new DecodedCiphertextEnvelope(
+            algorithm: $parts[1],
+            keyId: $parts[2],
+            associatedData: self::base64UrlDecode($parts[3]),
+            payload: self::base64UrlDecode($parts[4]),
+        );
     }
 
     private static function base64UrlEncode(string $value): string

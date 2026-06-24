@@ -23,8 +23,8 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     /** @var array<class-string, array<string, EncryptedField>> */
     protected array $encryptedFieldCache = [];
 
-    /** @var array<int, array<string, mixed>> */
-    private array $rawValues = [];
+    /** @var \WeakMap<object, array<string, mixed>> */
+    private \WeakMap $rawValues;
 
     private readonly EncryptedJsonCodec $encryptedJsonCodec;
 
@@ -37,6 +37,7 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
         ?EncryptedJsonCodec $encryptedJsonCodec = null,
     ) {
         $this->encryptedJsonCodec = $encryptedJsonCodec ?? new EncryptedJsonCodec($encryptor);
+        $this->rawValues = new \WeakMap();
     }
 
     public function getEncryptor(): EncryptorInterface
@@ -122,6 +123,8 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
             $blindIndexesUpdated = $this->blindIndexUpdater->update($entity, $blindIndexes, $changeSet);
         }
 
+        $encryptedFieldsUpdated = false;
+
         foreach ($properties as $field => $property) {
             $value = $property->getValue($entity);
 
@@ -135,10 +138,10 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
 
                     if (null !== $value) {
                         $property->setValue($entity, $this->encryptedJsonCodec->encrypt($value, $field, $context));
-                        $this->rawValues[$objectId][$field] = $value;
+                        $this->rememberRawValue($entity, $field, $value);
                     }
 
-                    $unitOfWork->recomputeSingleEntityChangeSet($metadata, $entity);
+                    $encryptedFieldsUpdated = true;
                     continue;
                 }
 
@@ -164,10 +167,10 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
 
                 if (null !== $value) {
                     $property->setValue($entity, $this->encryptor->encrypt((string) $value, $field));
-                    $this->rawValues[$objectId][$field] = $value;
+                    $this->rememberRawValue($entity, $field, $value);
                 }
 
-                $unitOfWork->recomputeSingleEntityChangeSet($metadata, $entity);
+                $encryptedFieldsUpdated = true;
                 continue;
             }
 
@@ -180,7 +183,7 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
             $unitOfWork->setOriginalEntityProperty($objectId, $field, $decryptedValue);
         }
 
-        if ($encrypt && $blindIndexesUpdated) {
+        if ($encrypt && ($encryptedFieldsUpdated || $blindIndexesUpdated)) {
             $unitOfWork->recomputeSingleEntityChangeSet($metadata, $entity);
         }
 
@@ -201,18 +204,23 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     private function restoreRawValues(LifecycleEventArgs $args): void
     {
         $entity = $args->getObject();
-        $objectId = spl_object_id($entity);
-
-        if (!isset($this->rawValues[$objectId])) {
+        if (!isset($this->rawValues[$entity])) {
             return;
         }
 
         $metadata = $args->getObjectManager()->getClassMetadata($entity::class);
         $properties = $this->encryptedFieldMetadataProvider->getForClassMetadata($metadata);
-        foreach ($this->rawValues[$objectId] as $field => $rawValue) {
+        foreach ($this->rawValues[$entity] as $field => $rawValue) {
             $properties[$field]->setValue($entity, $rawValue);
         }
 
-        unset($this->rawValues[$objectId]);
+        unset($this->rawValues[$entity]);
+    }
+
+    private function rememberRawValue(object $entity, string $field, mixed $value): void
+    {
+        $rawValues = $this->rawValues[$entity] ?? [];
+        $rawValues[$field] = $value;
+        $this->rawValues[$entity] = $rawValues;
     }
 }

@@ -84,23 +84,22 @@ class AesGcmEncryptor implements EncryptorInterface, KeyProviderAwareInterface, 
             return '';
         }
 
-        $envelope = CiphertextEnvelope::decode($data);
-        if (null !== $envelope) {
+        $envelope = CiphertextEnvelope::decodeValue($data);
+        if ($envelope instanceof DecodedCiphertextEnvelope) {
             return $this->decryptEnvelope($envelope);
         }
 
         return $this->decryptLegacy($data, $columnName);
     }
 
-    /** @param array{algorithm: string, key_id: string, associated_data: string, payload: string} $envelope */
-    private function decryptEnvelope(array $envelope): string
+    private function decryptEnvelope(DecodedCiphertextEnvelope $envelope): string
     {
-        $key = $this->key($envelope['key_id']);
+        $key = $this->key($envelope->keyId);
 
-        return match ($envelope['algorithm']) {
-            self::ENVELOPE_ALGORITHM => $this->decryptGcmPayload($envelope['payload'], $key, $envelope['associated_data']),
-            'cbc' => $this->decryptCbcPayload($envelope['payload'], $key),
-            default => throw new EncryptException(sprintf('Unsupported ciphertext algorithm "%s".', $envelope['algorithm'])),
+        return match ($envelope->algorithm) {
+            self::ENVELOPE_ALGORITHM => $this->decryptGcmPayload($envelope->payload, $key, $envelope->associatedData),
+            'cbc' => $this->decryptCbcPayload($envelope->payload, $key),
+            default => throw new EncryptException(sprintf('Unsupported ciphertext algorithm "%s".', $envelope->algorithm)),
         };
     }
 

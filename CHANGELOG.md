@@ -4,6 +4,7 @@
 
 - Add explicit encrypted array support for Doctrine `json` fields through `#[Encrypted(format: Encrypted::FORMAT_JSON)]` and the `encrypted: json` mapping option.
 - Store JSON ciphertext in an exact, versioned JSON wrapper while retaining reads and maintenance-command migration of plaintext JSON arrays.
+- Replace internal database-command array shapes with typed metadata objects, add a typed ciphertext-envelope decoder while retaining the existing array API, and make listener plaintext tracking object-safe.
 
 ## 1.0.0 (2026-06-23) Re-release with modernized features and security improvements
 
