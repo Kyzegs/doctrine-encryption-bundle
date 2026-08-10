@@ -69,7 +69,9 @@ final readonly class EncryptedFieldMetadataProvider
     /** @param ClassMetadata<object> $classMetadata */
     private function getOriginalProperty(ClassMetadata $classMetadata, string $fieldName, mixed $mapping): \ReflectionProperty
     {
-        $originalClass = $this->getMappingValue($mapping, 'originalClass') ?? $classMetadata->getName();
+        $originalClass = $this->getMappingValue($mapping, 'originalClass')
+            ?? $this->getMappingValue($mapping, 'declared')
+            ?? $classMetadata->getName();
         $originalField = $this->getMappingValue($mapping, 'originalField') ?? $fieldName;
 
         return new \ReflectionProperty($originalClass, $originalField);
