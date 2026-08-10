@@ -73,7 +73,7 @@ final readonly class EncryptedFieldMetadataProvider
             ?? $this->getMappingValue($mapping, 'declared')
             ?? $classMetadata->getName();
         $originalField = $this->getMappingValue($mapping, 'originalField') ?? $fieldName;
-    
+
         return new \ReflectionProperty($originalClass, $originalField);
     }
 
