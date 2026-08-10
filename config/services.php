@@ -39,7 +39,9 @@ return static function (ContainerConfigurator $container): void {
             null,
             param('doctrine_encryption.default_associated_data'),
             param('doctrine_encryption.encryptor_class'),
-        ]);
+        ])
+        // Fetched by the bundle's boot() to supply the DBAL type, which Doctrine builds outside the container.
+        ->public();
 
     $services->set(BlindIndexHasherInterface::class, HmacBlindIndexHasher::class)
         ->args([param('doctrine_encryption.blind_index_key')]);

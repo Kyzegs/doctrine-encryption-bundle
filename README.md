@@ -127,6 +127,41 @@ final class ContactDetails
 }
 ```
 
+### Encrypting through the DBAL type
+
+`encrypted_text` is an alternative to the attribute. It converts values on the way to and from the driver
+rather than through entity lifecycle events, so it also covers reads that never construct a managed entity:
+
+```php
+use Kyzegs\DoctrineEncryptionBundle\Types\EncryptedTextType;
+
+#[ORM\Column(type: EncryptedTextType::NAME, nullable: true)]
+private ?string $personalNumber = null;
+```
+
+The type is registered automatically; no `doctrine.dbal.types` entry is needed. An application declaring its
+own `encrypted_text` type keeps its own.
+
+Use the type *or* `#[Encrypted]` on a field, never both.
+
+| | `#[Encrypted]` | `encrypted_text` |
+| --- | --- | --- |
+| Managed entities | yes | yes |
+| Array and partial hydration | no | yes |
+| Blind indexes | yes | no |
+| Encrypted JSON arrays | yes | no |
+| `encrypt:database` maintenance | yes | no |
+| Ciphertext bound to its field | yes | no |
+
+Two limits are worth stating plainly. The DBAL API gives a type no column context, so values written this way
+carry no field binding and can be moved between `encrypted_text` columns. And `getScalarResult()` and
+`getSingleScalarResult()` return the raw column: the ORM deliberately skips type conversion for a scalar
+mapping, a documented quirk it keeps for backward compatibility. Select the entity, or use
+`getArrayResult()`, when a query has to return plaintext.
+
+Values written by either mechanism share one envelope format, so a field can move from one to the other
+without re-encrypting, subject to the field-binding difference above.
+
 ## Searching encrypted values
 
 Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead:

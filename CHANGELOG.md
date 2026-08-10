@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add the `encrypted_text` DBAL type as an alternative to `#[Encrypted]`. It converts at the driver boundary
+  rather than through lifecycle events, so array and partial hydration are decrypted too. It supports neither
+  blind indexes, encrypted JSON, `encrypt:database`, nor field binding, because a DBAL type has no column
+  context.
+
 ## 1.1.0 (2026-06-24) Encrypted JSON arrays and typed internals
 
 - Add explicit encrypted array support for Doctrine `json` fields through `#[Encrypted(format: Encrypted::FORMAT_JSON)]` and the `encrypted: json` mapping option.
