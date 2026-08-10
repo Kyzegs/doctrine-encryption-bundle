@@ -25,8 +25,10 @@ final readonly class EncryptorFactory
      * @param string      $encryptKey            256-bit encryption key
      * @param string      $defaultAssociatedData a fallback string used for AES-GBC-256 encryption
      * @param string|null $encryptorClass        the desired encryptor, defaults to OpenSSL, but can be overridden by passing a classname
+     * @param bool        $allowLegacyCbc        whether unauthenticated AES-CBC ciphertext may still be read
+     * @param bool        $verifyAssociatedData  whether a ciphertext must be read from the column it was written to
      */
-    public function createService(?string $encryptKey = null, ?string $defaultAssociatedData = null, ?string $encryptorClass = self::SUPPORTED_EXTENSION_OPENSSL): EncryptorInterface
+    public function createService(?string $encryptKey = null, ?string $defaultAssociatedData = null, ?string $encryptorClass = self::SUPPORTED_EXTENSION_OPENSSL, bool $allowLegacyCbc = false, bool $verifyAssociatedData = true): EncryptorInterface
     {
         $encryptor = new $encryptorClass($this->dispatcher);
         if (!$encryptor instanceof EncryptorInterface) {
@@ -48,6 +50,14 @@ final readonly class EncryptorFactory
 
         if (method_exists($encryptor, 'setDefaultAssociatedData')) {
             $encryptor->setDefaultAssociatedData($defaultAssociatedData);
+        }
+
+        if (method_exists($encryptor, 'setLegacyCbcAllowed')) {
+            $encryptor->setLegacyCbcAllowed($allowLegacyCbc);
+        }
+
+        if (method_exists($encryptor, 'setAssociatedDataVerified')) {
+            $encryptor->setAssociatedDataVerified($verifyAssociatedData);
         }
 
         return $encryptor;

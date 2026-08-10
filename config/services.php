@@ -39,6 +39,8 @@ return static function (ContainerConfigurator $container): void {
             null,
             param('doctrine_encryption.default_associated_data'),
             param('doctrine_encryption.encryptor_class'),
+            param('doctrine_encryption.allow_legacy_cbc'),
+            param('doctrine_encryption.verify_associated_data'),
         ]);
 
     $services->set(BlindIndexHasherInterface::class, HmacBlindIndexHasher::class)

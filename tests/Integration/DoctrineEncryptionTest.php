@@ -10,6 +10,8 @@ use Doctrine\Persistence\ManagerRegistry;
 use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedContact;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedRecord;
+use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\InheritedContact;
+use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\SimpleSecret;
 use Kyzegs\DoctrineEncryptionBundle\Twig\EncryptExtension;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Command\Command;
@@ -28,7 +30,12 @@ final class DoctrineEncryptionTest extends KernelTestCase
         $entityManager = $registry->getManager();
         self::assertInstanceOf(EntityManagerInterface::class, $entityManager);
         $this->entityManager = $entityManager;
-        (new SchemaTool($entityManager))->createSchema([$entityManager->getClassMetadata(EncryptedRecord::class)]);
+        (new SchemaTool($entityManager))->createSchema([
+            $entityManager->getClassMetadata(EncryptedRecord::class),
+            $entityManager->getClassMetadata(InheritedContact::class),
+            // encrypt:database walks every mapped entity, so every table has to exist.
+            $entityManager->getClassMetadata(SimpleSecret::class),
+        ]);
     }
 
     protected function tearDown(): void
@@ -79,6 +86,63 @@ final class DoctrineEncryptionTest extends KernelTestCase
         $updated = $this->entityManager->getConnection()->fetchOne('SELECT secret_value FROM encrypted_record WHERE id = ?', [$id]);
         self::assertIsString($updated);
         self::assertNotSame($raw['secret_value'], $updated);
+    }
+
+    public function testUnchangedEntityIsNotRewrittenOnASubsequentFlush(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = 'Stable Secret';
+        $record->mappedSecret = 'Stable Mapped Secret';
+        $record->contact = new EncryptedContact('Stable Embedded Secret');
+        $record->metadata = ['stable' => true];
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+
+        $connection = $this->entityManager->getConnection();
+        $afterInsert = $connection->fetchAssociative('SELECT secret_value, metadata FROM encrypted_record WHERE id = ?', [$record->id]);
+
+        $this->entityManager->flush();
+        $afterNoOpFlush = $connection->fetchAssociative('SELECT secret_value, metadata FROM encrypted_record WHERE id = ?', [$record->id]);
+
+        self::assertSame($afterInsert, $afterNoOpFlush);
+        self::assertSame('Stable Secret', $record->secret);
+        self::assertSame(['stable' => true], $record->metadata);
+    }
+
+    public function testEmptyStringSurvivesAnOrmRoundTrip(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = '';
+        $record->mappedSecret = 'Mapped Secret';
+        $record->contact = new EncryptedContact('Embedded Secret');
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+
+        $id = $record->id;
+        $this->entityManager->clear();
+
+        $loaded = $this->entityManager->find(EncryptedRecord::class, $id);
+        self::assertInstanceOf(EncryptedRecord::class, $loaded);
+        self::assertSame('', $loaded->secret);
+    }
+
+    public function testBlindIndexIsBuiltForFieldsInheritedFromAMappedSuperclass(): void
+    {
+        $contact = new InheritedContact();
+        $contact->setEmail('Person@Example.COM');
+        $this->entityManager->persist($contact);
+        $this->entityManager->flush();
+
+        self::assertSame(
+            hash_hmac('sha256', 'person@example.com', 'a-distinct-blind-index-test-key'),
+            $contact->getEmailLookup(),
+        );
+
+        $raw = $this->entityManager->getConnection()->fetchAssociative('SELECT email, email_lookup FROM inherited_contact WHERE id = ?', [$contact->id]);
+        self::assertIsArray($raw);
+        self::assertIsString($raw['email']);
+        self::assertStringStartsWith('SSEB1:gcm:integration:', $raw['email']);
+        self::assertSame($contact->getEmailLookup(), $raw['email_lookup']);
     }
 
     public function testDatabaseCommandDecryptsAndEncryptsInBatches(): void

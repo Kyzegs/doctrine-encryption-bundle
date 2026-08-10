@@ -44,13 +44,13 @@ final class DoctrineEncryptionExtension extends Extension
             $encryptKey = $config['encrypt_key'];
         }
 
-        $blindIndexKey = $config['blind_index_key'] ?? $encryptKey;
-
         $container->setParameter('doctrine_encryption.encrypt_key', $encryptKey);
         $container->setParameter('doctrine_encryption.key_id', $config['key_id']);
         $container->setParameter('doctrine_encryption.decryption_keys', $config['decryption_keys']);
-        $container->setParameter('doctrine_encryption.blind_index_key', $blindIndexKey);
+        $container->setParameter('doctrine_encryption.blind_index_key', $config['blind_index_key']);
         $container->setParameter('doctrine_encryption.default_associated_data', $config['default_associated_data']);
+        $container->setParameter('doctrine_encryption.allow_legacy_cbc', $config['allow_legacy_cbc']);
+        $container->setParameter('doctrine_encryption.verify_associated_data', $config['verify_associated_data']);
         $container->setParameter('doctrine_encryption.listener_class', $config['listener_class']);
         $container->setParameter('doctrine_encryption.encryptor_class', $config['encryptor_class']);
         $container->setParameter('doctrine_encryption.annotation_classes', $config['annotation_classes']);

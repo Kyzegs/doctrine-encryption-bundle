@@ -24,7 +24,7 @@ final readonly class EncryptedJsonCodec
         }
 
         if (!is_array($value)) {
-            throw new EncryptException(sprintf('Cannot encrypt JSON value at %s: expected array or null.', $context), $value);
+            throw new EncryptException(sprintf('Cannot encrypt JSON value at %s: expected array or null.', $context));
         }
 
         if ($this->isEncryptedWrapper($value)) {
@@ -34,7 +34,7 @@ final readonly class EncryptedJsonCodec
         $this->assertSupportedArrayValues($value, $context);
         $ciphertext = $this->encryptor->encrypt($this->encodeJson($value, $context), $columnName);
         if (!is_string($ciphertext)) {
-            throw new EncryptException(sprintf('Cannot encrypt JSON value at %s: encryptor returned null.', $context), $value);
+            throw new EncryptException(sprintf('Cannot encrypt JSON value at %s: encryptor returned null.', $context));
         }
 
         return [
@@ -52,7 +52,7 @@ final readonly class EncryptedJsonCodec
         }
 
         if (!is_array($value)) {
-            throw new EncryptException(sprintf('Cannot decrypt JSON value at %s: expected array or null.', $context), $value);
+            throw new EncryptException(sprintf('Cannot decrypt JSON value at %s: expected array or null.', $context));
         }
 
         if (!$this->isEncryptedWrapper($value)) {
@@ -63,12 +63,12 @@ final readonly class EncryptedJsonCodec
         $wrapper = $value[self::WRAPPER_KEY];
         $plaintext = $this->encryptor->decrypt($wrapper['ciphertext'], $columnName);
         if (!is_string($plaintext)) {
-            throw new EncryptException(sprintf('Cannot decrypt JSON value at %s: encryptor returned null.', $context), $value);
+            throw new EncryptException(sprintf('Cannot decrypt JSON value at %s: encryptor returned null.', $context));
         }
 
         $decoded = $this->decodeJson($plaintext, $context);
         if (!is_array($decoded)) {
-            throw new EncryptException(sprintf('Cannot decrypt JSON value at %s: decrypted JSON must contain an array.', $context), $decoded);
+            throw new EncryptException(sprintf('Cannot decrypt JSON value at %s: decrypted JSON must contain an array.', $context));
         }
 
         return $decoded;
@@ -95,7 +95,7 @@ final readonly class EncryptedJsonCodec
         try {
             return json_encode($value, \JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
-            throw new EncryptException(sprintf('Cannot encode JSON value at %s: %s', $context, $exception->getMessage()), $value, 0, $exception);
+            throw new EncryptException(sprintf('Cannot encode JSON value at %s: %s', $context, $exception->getMessage()), null, 0, $exception);
         }
     }
 
@@ -106,13 +106,13 @@ final readonly class EncryptedJsonCodec
         }
 
         if (!is_string($value)) {
-            throw new EncryptException(sprintf('Cannot decode JSON value at %s: expected database string or null.', $context), $value);
+            throw new EncryptException(sprintf('Cannot decode JSON value at %s: expected database string or null.', $context));
         }
 
         try {
             return json_decode($value, true, 512, \JSON_THROW_ON_ERROR);
         } catch (\JsonException $exception) {
-            throw new EncryptException(sprintf('Cannot decode JSON value at %s: %s', $context, $exception->getMessage()), $value, 0, $exception);
+            throw new EncryptException(sprintf('Cannot decode JSON value at %s: %s', $context, $exception->getMessage()), null, 0, $exception);
         }
     }
 
@@ -121,7 +121,7 @@ final readonly class EncryptedJsonCodec
     {
         foreach ($value as $item) {
             if (is_object($item) || is_resource($item)) {
-                throw new EncryptException(sprintf('Cannot encrypt JSON value at %s: arrays cannot contain objects or resources.', $context), $value);
+                throw new EncryptException(sprintf('Cannot encrypt JSON value at %s: arrays cannot contain objects or resources.', $context));
             }
 
             if (is_array($item)) {

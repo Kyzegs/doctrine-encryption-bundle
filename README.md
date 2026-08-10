@@ -38,7 +38,6 @@ Store the result in a secret manager or an uncommitted environment file:
 
 ```dotenv
 DOCTRINE_ENCRYPTION_ENCRYPT_KEY=base64-encoded-key
-DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY=a-different-secret
 ```
 
 Configure the bundle:
@@ -47,11 +46,11 @@ Configure the bundle:
 # config/packages/doctrine_encryption.yaml
 doctrine_encryption:
     encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
-    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
     key_id: '2026-01'
 ```
 
-The encryption and blind-index keys should be different. Never commit either key.
+Never commit the key. [Blind indexes](#searching-encrypted-values) need a second key, which only applications
+using that feature have to configure.
 
 ## Encrypting fields
 
@@ -129,7 +128,19 @@ final class ContactDetails
 
 ## Searching encrypted values
 
-Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead:
+Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead.
+
+Blind indexes are hashed with their own key, which must differ from `encrypt_key`. Configure it before mapping
+the first blind index; without it, writing one fails with a message saying so.
+
+```dotenv
+DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY=a-different-secret
+```
+
+```yaml
+doctrine_encryption:
+    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
+```
 
 ```php
 use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
@@ -183,6 +194,32 @@ bin/console encrypt:database rotate --batch-size=250
 
 Remove a retired key only after every value using its key ID has been rotated and verified.
 
+### Reading legacy AES-CBC values
+
+Unauthenticated AES-CBC ciphertext is refused by default, because accepting it lets anyone who can write to
+the database strip authentication from a value. Opt in only for the length of the migration:
+
+```yaml
+doctrine_encryption:
+    allow_legacy_cbc: true
+```
+
+Rotate every affected table with `encrypt:database rotate`, then remove the setting.
+
+### Renaming an encrypted field
+
+A ciphertext records the field it was written to and, by default, may only be read back from that field.
+Renaming a mapped field therefore needs one of two migrations: rotate the affected table straight after the
+rename, or relax verification while the old values are still in place.
+
+```yaml
+doctrine_encryption:
+    verify_associated_data: false
+```
+
+Rotate, then restore the default. Leaving verification off allows a ciphertext to be moved between columns
+by anyone who can write to the database.
+
 ## Database maintenance
 
 The maintenance command supports scalar and encrypted JSON fields with `encrypt`, `decrypt`, and `rotate`, custom and composite scalar identifiers, quoted identifiers, transactions, batches, confirmation, and dry runs:
@@ -229,7 +266,10 @@ Likewise, `encryptor_service` accepts any registered `EncryptorInterface` servic
 - Encryption does not replace access control, TLS, backups, audit logging, or database hardening.
 - Losing an encryption key permanently loses the corresponding data.
 - Application compromise can expose plaintext and keys while the process is running.
-- Blind indexes permit equality analysis and should use a separate high-entropy secret.
+- Blind indexes permit equality analysis and require their own high-entropy secret, distinct from the
+  encryption key.
+- `is_disabled: true` turns the bundle off completely: encrypted fields are neither encrypted on write nor
+  decrypted on read, so entities hold whatever the column holds.
 - Test restoration and rotation on a copy of production data before operating on production.
 
 See [UPGRADE.md](UPGRADE.md) before upgrading an existing installation and [SECURITY.md](SECURITY.md) for vulnerability reporting.

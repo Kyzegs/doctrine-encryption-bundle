@@ -30,7 +30,9 @@ final readonly class EncryptedFieldMetadataProvider
             $mapping = $classMetadata->getFieldMapping($fieldName);
             $attributeProperty = $this->getOriginalProperty($classMetadata, $fieldName, $mapping);
 
-            $attributeFormat = $this->getAttributeFormat($attributeProperty);
+            $attributeFormat = $attributeProperty instanceof \ReflectionProperty
+                ? $this->getAttributeFormat($attributeProperty)
+                : null;
             $mappingFormat = $this->getMappingFormat($mapping);
 
             if (null === $attributeFormat && null === $mappingFormat) {
@@ -67,14 +69,16 @@ final readonly class EncryptedFieldMetadataProvider
     }
 
     /** @param ClassMetadata<object> $classMetadata */
-    private function getOriginalProperty(ClassMetadata $classMetadata, string $fieldName, mixed $mapping): \ReflectionProperty
+    private function getOriginalProperty(ClassMetadata $classMetadata, string $fieldName, mixed $mapping): ?\ReflectionProperty
     {
+        /** @var class-string $originalClass */
         $originalClass = $this->getMappingValue($mapping, 'originalClass')
             ?? $this->getMappingValue($mapping, 'declared')
+            ?? $this->getMappingValue($mapping, 'inherited')
             ?? $classMetadata->getName();
         $originalField = $this->getMappingValue($mapping, 'originalField') ?? $fieldName;
 
-        return new \ReflectionProperty($originalClass, $originalField);
+        return ReflectionPropertyResolver::find($originalClass, $originalField);
     }
 
     /** @param ClassMetadata<object> $classMetadata */

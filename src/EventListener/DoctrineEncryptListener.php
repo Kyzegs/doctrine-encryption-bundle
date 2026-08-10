@@ -73,6 +73,11 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
     /** @param LifecycleEventArgs<EntityManagerInterface> $args */
     public function postLoad(LifecycleEventArgs $args): void
     {
+        // Decrypting while onFlush is disabled would hand plaintext back to Doctrine and persist it in the clear.
+        if ($this->isDisabled) {
+            return;
+        }
+
         $this->processFields($args->getObjectManager(), $args->getObject(), false);
     }
 
@@ -208,10 +213,16 @@ class DoctrineEncryptListener implements DoctrineEncryptListenerInterface
             return;
         }
 
-        $metadata = $args->getObjectManager()->getClassMetadata($entity::class);
-        $properties = $this->encryptedFieldMetadataProvider->getForClassMetadata($metadata);
+        $objectManager = $args->getObjectManager();
+        $unitOfWork = $objectManager->getUnitOfWork();
+        $objectId = spl_object_id($entity);
+        $properties = $this->getEncryptedFields($objectManager, $entity);
+
         foreach ($this->rawValues[$entity] as $field => $rawValue) {
             $properties[$field]->setValue($entity, $rawValue);
+            // Without this the unit of work keeps the ciphertext it just wrote, so the next flush sees the
+            // restored plaintext as a change and rewrites every encrypted column.
+            $unitOfWork->setOriginalEntityProperty($objectId, $field, $rawValue);
         }
 
         unset($this->rawValues[$entity]);
