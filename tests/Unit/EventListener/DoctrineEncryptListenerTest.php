@@ -7,6 +7,7 @@ namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\EventListener;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\ORM\UnitOfWork;
+use Doctrine\Persistence\Event\LifecycleEventArgs;
 use Doctrine\Persistence\Mapping\RuntimeReflectionService;
 use Kyzegs\DoctrineEncryptionBundle\Annotations\Encrypted;
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
@@ -63,6 +64,26 @@ class DoctrineEncryptListenerTest extends TestCase
         self::assertSame([['encrypted[address.secret]:plain-secret', 'address.secret']], $encryptor->decryptCalls);
     }
 
+    public function testDisabledListenerLeavesLoadedCiphertextAlone(): void
+    {
+        $entity = new EntityWithEncryptedEmbeddable(new EncryptedAddress('encrypted[address.secret]:plain-secret'));
+        $meta = $this->createEntityMetadata();
+
+        $unitOfWork = $this->createMock(UnitOfWork::class);
+        $unitOfWork->expects($this->never())->method('setOriginalEntityProperty');
+
+        $objectManager = $this->createObjectManager($meta, $unitOfWork);
+        $encryptor = new RecordingEncryptor();
+        $listener = $this->createListener($encryptor, true);
+
+        $args = new LifecycleEventArgs($entity, $objectManager);
+        $listener->postLoad($args);
+
+        // Decrypting here would hand plaintext to Doctrine, which onFlush no longer re-encrypts.
+        self::assertSame('encrypted[address.secret]:plain-secret', $entity->address->secret);
+        self::assertSame([], $encryptor->decryptCalls);
+    }
+
     /** @param ClassMetadata<object> $meta */
     private function createObjectManager(ClassMetadata $meta, UnitOfWork $unitOfWork): EntityManagerInterface
     {
@@ -78,11 +99,11 @@ class DoctrineEncryptListenerTest extends TestCase
         return $objectManager;
     }
 
-    private function createListener(EncryptorInterface $encryptor): TestableDoctrineEncryptListener
+    private function createListener(EncryptorInterface $encryptor, bool $isDisabled = false): TestableDoctrineEncryptListener
     {
         return new TestableDoctrineEncryptListener(
             $encryptor,
-            false,
+            $isDisabled,
             new BlindIndexMetadataProvider(),
             new BlindIndexUpdater($this->createMock(BlindIndexHasherInterface::class)),
             new EncryptedFieldMetadataProvider([Encrypted::class]),

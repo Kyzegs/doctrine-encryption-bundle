@@ -49,7 +49,10 @@ final class IntegrationKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return sys_get_temp_dir().'/kyzegs-doctrine-encryption-bundle/cache-'.md5_file(__FILE__).md5_file(__DIR__.'/Fixture/EncryptedRecord.php');
+        $fixtures = glob(__DIR__.'/Fixture/*.php') ?: [];
+        $fingerprint = array_map(static fn (string $file): string => (string) md5_file($file), $fixtures);
+
+        return sys_get_temp_dir().'/kyzegs-doctrine-encryption-bundle/cache-'.md5(__FILE__.md5_file(__FILE__).implode('', $fingerprint));
     }
 
     public function getLogDir(): string

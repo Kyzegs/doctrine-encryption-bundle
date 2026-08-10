@@ -8,6 +8,7 @@ use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ObjectManager;
 use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
 use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
+use Kyzegs\DoctrineEncryptionBundle\Mapping\ReflectionPropertyResolver;
 
 final class BlindIndexMetadataProvider
 {
@@ -65,14 +66,10 @@ final class BlindIndexMetadataProvider
             return $this->cache[$className];
         }
 
-        $reflectionClass = new \ReflectionClass($className);
-        $properties = [];
-        foreach ($reflectionClass->getProperties() as $property) {
-            $properties[$property->getName()] = $property;
-        }
+        $properties = ReflectionPropertyResolver::all(new \ReflectionClass($className));
         $blindIndexFields = [];
 
-        foreach ($reflectionClass->getProperties() as $refProperty) {
+        foreach ($properties as $refProperty) {
             foreach ($refProperty->getAttributes(BlindIndex::class, \ReflectionAttribute::IS_INSTANCEOF) as $refAttribute) {
                 /** @var BlindIndex $attribute */
                 $attribute = $refAttribute->newInstance();

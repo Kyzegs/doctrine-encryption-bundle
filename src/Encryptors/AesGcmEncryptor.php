@@ -20,6 +20,8 @@ class AesGcmEncryptor implements EncryptorInterface, KeyProviderAwareInterface, 
     private ?string $secretKey = null;
     private ?KeyProviderInterface $keyProvider = null;
     private ?string $defaultAssociatedData = null;
+    private bool $legacyCbcAllowed = false;
+    private bool $associatedDataVerified = true;
 
     public function __construct(private readonly EventDispatcherInterface $dispatcher)
     {
@@ -46,13 +48,32 @@ class AesGcmEncryptor implements EncryptorInterface, KeyProviderAwareInterface, 
         $this->defaultAssociatedData = $defaultAssociatedData;
     }
 
+    /**
+     * Unauthenticated AES-CBC reads are refused unless a migration explicitly opts in.
+     *
+     * Accepting CBC lets anyone able to write ciphertext strip authentication and probe a padding oracle.
+     */
+    public function setLegacyCbcAllowed(bool $legacyCbcAllowed): void
+    {
+        $this->legacyCbcAllowed = $legacyCbcAllowed;
+    }
+
+    /**
+     * Turning verification off lets a ciphertext be read from a column other than the one it was written to,
+     * which is what makes a field rename readable before the values are rotated.
+     */
+    public function setAssociatedDataVerified(bool $associatedDataVerified): void
+    {
+        $this->associatedDataVerified = $associatedDataVerified;
+    }
+
     public function encrypt(?string $data, ?string $columnName = null): ?string
     {
         if (null === $data) {
             return null;
         }
 
-        if (str_ends_with($data, DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)) {
+        if (CiphertextEnvelope::looksLikeCiphertext($data)) {
             return $data;
         }
 
@@ -86,21 +107,47 @@ class AesGcmEncryptor implements EncryptorInterface, KeyProviderAwareInterface, 
 
         $envelope = CiphertextEnvelope::decodeValue($data);
         if ($envelope instanceof DecodedCiphertextEnvelope) {
-            return $this->decryptEnvelope($envelope);
+            return $this->decryptEnvelope($envelope, $columnName);
         }
 
         return $this->decryptLegacy($data, $columnName);
     }
 
-    private function decryptEnvelope(DecodedCiphertextEnvelope $envelope): string
+    private function decryptEnvelope(DecodedCiphertextEnvelope $envelope, ?string $columnName): string
     {
         $key = $this->key($envelope->keyId);
 
         return match ($envelope->algorithm) {
-            self::ENVELOPE_ALGORITHM => $this->decryptGcmPayload($envelope->payload, $key, $envelope->associatedData),
-            'cbc' => $this->decryptCbcPayload($envelope->payload, $key),
+            self::ENVELOPE_ALGORITHM => $this->decryptGcmPayload(
+                $envelope->payload,
+                $key,
+                $this->assertAssociatedData($envelope->associatedData, $columnName),
+            ),
+            'cbc' => $this->decryptLegacyCbcPayload($envelope->payload, $key),
             default => throw new EncryptException(sprintf('Unsupported ciphertext algorithm "%s".', $envelope->algorithm)),
         };
+    }
+
+    /**
+     * The envelope carries its own associated data, so it only binds a ciphertext to a column when the
+     * caller states which column the value was read from and the two are required to agree.
+     */
+    private function assertAssociatedData(string $associatedData, ?string $columnName): string
+    {
+        if ($this->associatedDataVerified && null !== $columnName && $associatedData !== $columnName) {
+            throw new EncryptException(sprintf('The ciphertext read from "%s" is bound to "%s". Rotate after a rename, or set "verify_associated_data: false" during the migration.', $columnName, $associatedData));
+        }
+
+        return $associatedData;
+    }
+
+    private function decryptLegacyCbcPayload(string $payload, string $key): string
+    {
+        if (!$this->legacyCbcAllowed) {
+            throw new EncryptException('Unauthenticated AES-CBC ciphertext was refused. Set "allow_legacy_cbc: true" to migrate it, then rotate.');
+        }
+
+        return $this->decryptCbcPayload($payload, $key);
     }
 
     private function decryptLegacy(string $data, ?string $columnName): string
@@ -119,14 +166,14 @@ class AesGcmEncryptor implements EncryptorInterface, KeyProviderAwareInterface, 
             return $this->decryptGcmPayload($payload, $key, $associatedData);
         } catch (EncryptException) {
             // The historical default was CBC and legacy values carry no algorithm marker.
-            return $this->decryptCbcPayload($payload, $key);
+            return $this->decryptLegacyCbcPayload($payload, $key);
         }
     }
 
     private function decryptGcmPayload(string $payload, string $key, string $associatedData): string
     {
         $ivLength = openssl_cipher_iv_length(self::METHOD);
-        if (strlen($payload) < $ivLength + self::TAG_LENGTH + 1) {
+        if (strlen($payload) < $ivLength + self::TAG_LENGTH) {
             throw new EncryptException('The AES-GCM ciphertext is truncated.');
         }
 

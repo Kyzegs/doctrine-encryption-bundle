@@ -11,6 +11,32 @@ final class CiphertextEnvelope
 {
     private const PREFIX = 'SSEB1';
 
+    /** Shortest legacy payload: a 12-byte GCM IV plus a 16-byte tag. */
+    private const MINIMUM_LEGACY_PAYLOAD_LENGTH = 28;
+
+    /**
+     * Reports whether a value is already ciphertext rather than plaintext that merely ends with the suffix.
+     *
+     * ponytail: unversioned legacy values carry no marker, so they are recognised by strict base64 of at least
+     * one IV plus tag. Rotating legacy rows onto the versioned envelope removes the heuristic entirely.
+     */
+    public static function looksLikeCiphertext(string $value): bool
+    {
+        if (!str_ends_with($value, DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)) {
+            return false;
+        }
+
+        $encoded = substr($value, 0, -strlen(DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX));
+
+        if (str_starts_with($encoded, self::PREFIX.':')) {
+            return true;
+        }
+
+        $payload = base64_decode($encoded, true);
+
+        return false !== $payload && strlen($payload) >= self::MINIMUM_LEGACY_PAYLOAD_LENGTH;
+    }
+
     public static function encode(string $algorithm, string $keyId, string $associatedData, string $payload): string
     {
         if (1 !== preg_match('/^[A-Za-z0-9._-]{1,64}$/', $keyId)) {
