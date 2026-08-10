@@ -106,6 +106,23 @@ final class EncryptedFieldMetadataProviderTest extends TestCase
         (new EncryptedFieldMetadataProvider([Encrypted::class]))->getForClassMetadata($metadata);
     }
 
+    public function testFindsAttributeOnPrivatePropertyDeclaredInParent(): void
+    {
+        $metadata = new ClassMetadata(EncryptedFieldMetadataProviderTestEntity::class);
+        $metadata->initializeReflection(new RuntimeReflectionService());
+        $metadata->mapField([
+            'fieldName' => 'inheritedField',
+            'type' => 'string',
+            'columnName' => 'inherited_field',
+            'declared' => EncryptedFieldMetadataProviderTestParentEntity::class,
+        ]);
+        $metadata->wakeupReflection(new RuntimeReflectionService());
+
+        $fields = (new EncryptedFieldMetadataProvider([Encrypted::class]))->getForClassMetadata($metadata);
+
+        self::assertSame(['inheritedField'], array_keys($fields));
+    }
+
     /**
      * @param array<string, array<string, mixed>> $fields
      *
@@ -128,6 +145,12 @@ final class EncryptedFieldMetadataProviderTest extends TestCase
 
         return $metadata;
     }
+}
+
+abstract class EncryptedFieldMetadataProviderTestParentEntity
+{
+    #[Encrypted]
+    private string $inheritedField;
 }
 
 final class EncryptedFieldMetadataProviderTestEntity
