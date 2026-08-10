@@ -11,6 +11,7 @@ use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedContact;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedRecord;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\InheritedContact;
+use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\SimpleSecret;
 use Kyzegs\DoctrineEncryptionBundle\Twig\EncryptExtension;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Console\Command\Command;
@@ -32,6 +33,8 @@ final class DoctrineEncryptionTest extends KernelTestCase
         (new SchemaTool($entityManager))->createSchema([
             $entityManager->getClassMetadata(EncryptedRecord::class),
             $entityManager->getClassMetadata(InheritedContact::class),
+            // encrypt:database walks every mapped entity, so every table has to exist.
+            $entityManager->getClassMetadata(SimpleSecret::class),
         ]);
     }
 

@@ -4,15 +4,19 @@
 
 Three defaults changed. Each has a configuration escape hatch intended for the length of a migration.
 
-**`blind_index_key` is now required and must differ from `encrypt_key`.** Installations that relied on the
-silent fallback to the encryption key must set it explicitly. Setting a *new* value changes every stored blind
-index, so rebuild them afterwards:
+**`blind_index_key` no longer falls back to the encryption key.** It stays optional for applications that map
+no blind index, and is required by the ones that do; writing a blind index without it now fails with a message
+naming the setting.
+
+Installations that relied on the fallback must set it explicitly, and it must differ from `encrypt_key`:
 
 ```yaml
 doctrine_encryption:
     encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
     blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
 ```
+
+A *new* value changes every stored blind index, so rebuild them afterwards:
 
 ```bash
 bin/console encrypt:blind-index --dry-run

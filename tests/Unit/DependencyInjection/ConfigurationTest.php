@@ -25,12 +25,11 @@ final class ConfigurationTest extends TestCase
         self::assertTrue($config['verify_associated_data']);
     }
 
-    public function testMissingBlindIndexKeyIsRejected(): void
+    public function testBlindIndexKeyIsOptionalForApplicationsWithoutBlindIndexes(): void
     {
-        $this->expectException(InvalidConfigurationException::class);
-        $this->expectExceptionMessage('A "blind_index_key" is required.');
+        $config = $this->process(['encrypt_key' => self::ENCRYPT_KEY]);
 
-        $this->process(['encrypt_key' => self::ENCRYPT_KEY]);
+        self::assertNull($config['blind_index_key']);
     }
 
     public function testBlindIndexKeyReusingTheEncryptionKeyIsRejected(): void

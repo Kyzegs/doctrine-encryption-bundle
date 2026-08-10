@@ -14,8 +14,9 @@ Correctness and hardening release. See [UPGRADE.md](UPGRADE.md) for the required
   alike, unless `allow_legacy_cbc` is enabled for a migration.
 - Resolve encrypted and blind-index fields that a mapped superclass declares as private properties, which
   previously threw a `ReflectionException` or silently skipped the field.
-- Require a `blind_index_key` distinct from `encrypt_key` instead of silently reusing the encryption key for
-  HMAC.
+- Stop `blind_index_key` from silently falling back to the encryption key. It remains optional for
+  applications that map no blind index, and is required, and must differ from `encrypt_key`, for those that
+  do.
 - Stop `is_disabled: true` from decrypting on load and letting the plaintext be written back to the column.
 - Keep plaintext out of `EncryptException`, which exposed it to any handler that dumps exception properties.
 

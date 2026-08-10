@@ -38,7 +38,6 @@ Store the result in a secret manager or an uncommitted environment file:
 
 ```dotenv
 DOCTRINE_ENCRYPTION_ENCRYPT_KEY=base64-encoded-key
-DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY=a-different-secret
 ```
 
 Configure the bundle:
@@ -47,11 +46,11 @@ Configure the bundle:
 # config/packages/doctrine_encryption.yaml
 doctrine_encryption:
     encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
-    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
     key_id: '2026-01'
 ```
 
-`blind_index_key` is required and must differ from `encrypt_key`; the bundle refuses to boot otherwise. Never commit either key.
+Never commit the key. [Blind indexes](#searching-encrypted-values) need a second key, which only applications
+using that feature have to configure.
 
 ## Encrypting fields
 
@@ -129,7 +128,19 @@ final class ContactDetails
 
 ## Searching encrypted values
 
-Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead:
+Randomized encryption cannot be queried by plaintext and must not carry a meaningful unique constraint. Add a blind-index column instead.
+
+Blind indexes are hashed with their own key, which must differ from `encrypt_key`. Configure it before mapping
+the first blind index; without it, writing one fails with a message saying so.
+
+```dotenv
+DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY=a-different-secret
+```
+
+```yaml
+doctrine_encryption:
+    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
+```
 
 ```php
 use Kyzegs\DoctrineEncryptionBundle\Attribute\BlindIndex;
@@ -255,7 +266,8 @@ Likewise, `encryptor_service` accepts any registered `EncryptorInterface` servic
 - Encryption does not replace access control, TLS, backups, audit logging, or database hardening.
 - Losing an encryption key permanently loses the corresponding data.
 - Application compromise can expose plaintext and keys while the process is running.
-- Blind indexes permit equality analysis and require a separate high-entropy secret.
+- Blind indexes permit equality analysis and require their own high-entropy secret, distinct from the
+  encryption key.
 - `is_disabled: true` turns the bundle off completely: encrypted fields are neither encrypted on write nor
   decrypted on read, so entities hold whatever the column holds.
 - Test restoration and rotation on a copy of production data before operating on production.

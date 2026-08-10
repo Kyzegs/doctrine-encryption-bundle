@@ -10,12 +10,17 @@ use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 final readonly class HmacBlindIndexHasher implements BlindIndexHasherInterface
 {
     public function __construct(
-        private string $key,
+        private ?string $key = null,
     ) {
     }
 
     public function hash(?string $value, string $normalizer = BlindIndex::NORMALIZE_NONE): ?string
     {
+        // Reaching a hasher at all means a blind index is mapped, so the key stops being optional here.
+        if (null === $this->key || '' === $this->key) {
+            throw new EncryptException('Blind indexes require a "blind_index_key". It must differ from "encrypt_key".');
+        }
+
         if (null === $value) {
             return null;
         }
