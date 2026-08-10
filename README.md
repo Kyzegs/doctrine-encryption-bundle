@@ -144,14 +144,27 @@ private string $email;
 private ?string $emailLookupHash = null;
 ```
 
-Create the same hash when querying:
+Query through `BlindIndexQueryHelper`, which reads the normalizer from the mapping:
 
 ```php
-use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexQueryHelper;
 
-$hash = $blindIndexHasher->hash($email, BlindIndex::NORMALIZE_LOWERCASE);
-$user = $repository->findOneBy(['emailLookupHash' => $hash]);
+// Name the encrypted field being searched; the helper returns criteria for its blind index.
+$criteria = $blindIndexQueryHelper->criteria(User::class, 'email', $email);
+$user = $repository->findOneBy($criteria);
 ```
+
+For a query builder, hash a single blind-index field directly:
+
+```php
+$hash = $blindIndexQueryHelper->hash(User::class, 'emailLookupHash', $email);
+
+$qb->andWhere('u.emailLookupHash = :hash')->setParameter('hash', $hash);
+```
+
+Both throw when the named field is not a blind index, so a renamed or removed index fails loudly instead of
+returning no rows. Hashing by hand with `BlindIndexHasherInterface` still works, but the normalizer passed at
+the call site has to keep matching the attribute; when the two drift, the query silently finds nothing.
 
 Available normalizers are `none`, `trim`, `lowercase`, and `uppercase`. Blind indexes reveal equality patterns; use them only for fields that genuinely need lookups.
 

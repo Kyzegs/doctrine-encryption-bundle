@@ -151,6 +151,16 @@ abstract class EncryptedFieldMetadataProviderTestParentEntity
 {
     #[Encrypted]
     private string $inheritedField;
+
+    public function getInheritedField(): string
+    {
+        return $this->inheritedField;
+    }
+
+    public function setInheritedField(string $inheritedField): void
+    {
+        $this->inheritedField = $inheritedField;
+    }
 }
 
 final class EncryptedFieldMetadataProviderTestEntity

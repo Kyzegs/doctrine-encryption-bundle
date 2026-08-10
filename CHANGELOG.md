@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add `BlindIndexQueryHelper`, which builds blind-index lookups from the mapping so a search no longer has to
+  repeat the normalizer declared on the attribute.
+
 ## 1.1.0 (2026-06-24) Encrypted JSON arrays and typed internals
 
 - Add explicit encrypted array support for Doctrine `json` fields through `#[Encrypted(format: Encrypted::FORMAT_JSON)]` and the `encrypted: json` mapping option.

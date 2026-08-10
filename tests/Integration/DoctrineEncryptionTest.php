@@ -7,7 +7,9 @@ namespace Kyzegs\DoctrineEncryptionBundle\Tests\Integration;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Tools\SchemaTool;
 use Doctrine\Persistence\ManagerRegistry;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexQueryHelper;
 use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
+use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedContact;
 use Kyzegs\DoctrineEncryptionBundle\Tests\Integration\Fixture\EncryptedRecord;
 use Kyzegs\DoctrineEncryptionBundle\Twig\EncryptExtension;
@@ -79,6 +81,43 @@ final class DoctrineEncryptionTest extends KernelTestCase
         $updated = $this->entityManager->getConnection()->fetchOne('SELECT secret_value FROM encrypted_record WHERE id = ?', [$id]);
         self::assertIsString($updated);
         self::assertNotSame($raw['secret_value'], $updated);
+    }
+
+    public function testQueryHelperBuildsLookupsFromTheMapping(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = 'Findable Secret';
+        $record->mappedSecret = 'Mapped Secret';
+        $record->contact = new EncryptedContact('Embedded Secret');
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+        $id = $record->id;
+        $this->entityManager->clear();
+
+        $helper = self::getContainer()->get(BlindIndexQueryHelper::class);
+        self::assertInstanceOf(BlindIndexQueryHelper::class, $helper);
+
+        // The caller states the encrypted field it searches on and never repeats the normalizer.
+        $criteria = $helper->criteria(EncryptedRecord::class, 'secret', '  findable SECRET  ');
+        self::assertSame(['secretLookup' => hash_hmac('sha256', 'findable secret', 'a-distinct-blind-index-test-key')], $criteria);
+
+        $found = $this->entityManager->getRepository(EncryptedRecord::class)->findOneBy($criteria);
+        self::assertInstanceOf(EncryptedRecord::class, $found);
+        self::assertSame($id, $found->id);
+        self::assertSame('Findable Secret', $found->secret);
+
+        self::assertSame($criteria['secretLookup'], $helper->hash(EncryptedRecord::class, 'secretLookup', 'Findable Secret'));
+        self::assertNull($helper->hash(EncryptedRecord::class, 'secretLookup', null));
+    }
+
+    public function testQueryHelperRejectsFieldsThatAreNotBlindIndexes(): void
+    {
+        $helper = self::getContainer()->get(BlindIndexQueryHelper::class);
+        self::assertInstanceOf(BlindIndexQueryHelper::class, $helper);
+
+        $this->expectException(EncryptException::class);
+        $this->expectExceptionMessage('No blind index on');
+        $helper->criteria(EncryptedRecord::class, 'mappedSecret', 'anything');
     }
 
     public function testDatabaseCommandDecryptsAndEncryptsInBatches(): void
