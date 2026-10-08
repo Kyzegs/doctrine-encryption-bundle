@@ -63,7 +63,7 @@ final class IntegrationKernel extends Kernel
     {
         // The kernel is not booted in debug mode, so nothing invalidates a compiled container on its own.
         $sources = array_merge(
-            [__FILE__, __DIR__.'/../../config/services.php', __DIR__.'/../../config/twig_services.php'],
+            [__FILE__, __DIR__.'/../../config/services.php', __DIR__.'/../../config/twig_services.php', __DIR__.'/../../src/DoctrineEncryptionBundle.php'],
             glob(__DIR__.'/Fixture/*.php') ?: [],
         );
         $fingerprint = implode('', array_map(static fn (string $file): string => (string) md5_file($file), $sources));

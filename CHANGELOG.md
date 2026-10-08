@@ -21,6 +21,10 @@ Correctness and hardening release. See [UPGRADE.md](UPGRADE.md) for the required
 - Keep plaintext out of `EncryptException`, which exposed it to any handler that dumps exception properties.
 - Add `BlindIndexQueryHelper`, which builds blind-index lookups from the mapping so a search no longer has to
   repeat the normalizer declared on the attribute.
+- Add the `encrypted_text` DBAL type as an alternative to `#[Encrypted]`. It converts at the driver boundary
+  rather than through lifecycle events, so array and partial hydration are decrypted too. It supports neither
+  blind indexes, encrypted JSON, `encrypt:database`, nor field binding, because a DBAL type has no column
+  context.
 
 ## 1.1.0 (2026-06-24) Encrypted JSON arrays and typed internals
 
