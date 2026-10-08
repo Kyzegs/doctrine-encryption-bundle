@@ -61,10 +61,14 @@ final class IntegrationKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        $fixtures = glob(__DIR__.'/Fixture/*.php') ?: [];
-        $fingerprint = array_map(static fn (string $file): string => (string) md5_file($file), $fixtures);
+        // The kernel is not booted in debug mode, so nothing invalidates a compiled container on its own.
+        $sources = array_merge(
+            [__FILE__, __DIR__.'/../../config/services.php', __DIR__.'/../../config/twig_services.php'],
+            glob(__DIR__.'/Fixture/*.php') ?: [],
+        );
+        $fingerprint = implode('', array_map(static fn (string $file): string => (string) md5_file($file), $sources));
 
-        return sys_get_temp_dir().'/kyzegs-doctrine-encryption-bundle/cache-'.md5(__FILE__.md5_file(__FILE__).implode('', $fingerprint).($this->blindIndexKey ?? 'no-blind-index-key'));
+        return sys_get_temp_dir().'/kyzegs-doctrine-encryption-bundle/cache-'.md5($fingerprint.($this->blindIndexKey ?? 'no-blind-index-key'));
     }
 
     public function getLogDir(): string
