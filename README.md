@@ -158,8 +158,10 @@ carry no field binding and can be moved between `encrypted_text` columns. And `g
 mapping, a documented quirk it keeps for backward compatibility. Select the entity, or use
 `getArrayResult()`, when a query has to return plaintext.
 
-Values written by either mechanism share one envelope format, so a field can move from one to the other
-without re-encrypting, subject to the field-binding difference above.
+Both mechanisms write the same envelope format. A field can move from `#[Encrypted]` to `encrypted_text`
+without re-encrypting. Moving the other way needs a rotation, because values written by the type are not bound
+to the field and the attribute refuses them: set `verify_associated_data: false`, switch the mapping, run
+`encrypt:database rotate`, then restore the setting.
 
 ## Searching encrypted values
 
@@ -316,8 +318,8 @@ Likewise, `encryptor_service` accepts any registered `EncryptorInterface` servic
 - Application compromise can expose plaintext and keys while the process is running.
 - Blind indexes permit equality analysis and require their own high-entropy secret, distinct from the
   encryption key.
-- `is_disabled: true` turns the bundle off completely: encrypted fields are neither encrypted on write nor
-  decrypted on read, so entities hold whatever the column holds.
+- `is_disabled: true` turns the attribute off completely: encrypted fields are neither encrypted on write nor
+  decrypted on read, so entities hold whatever the column holds. It does not affect `encrypted_text` columns.
 - Test restoration and rotation on a copy of production data before operating on production.
 
 See [UPGRADE.md](UPGRADE.md) before upgrading an existing installation and [SECURITY.md](SECURITY.md) for vulnerability reporting.
