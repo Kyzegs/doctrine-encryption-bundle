@@ -29,9 +29,11 @@ class AesCbcEncryptorTest extends \PHPUnit\Framework\TestCase
         $result = $encryptor->encrypt(null);
         $this->assertTrue(null === $result);
 
-        // Assert that "<ENC>" returns an empty value;
+        // Assert that plaintext which merely ends with the suffix is still encrypted.
         $result = $encryptor->encrypt('<ENC>');
-        $this->assertTrue('<ENC>' === $result);
+        $this->assertIsString($result);
+        $this->assertStringStartsWith('SSEB1:cbc:', $result);
+        $this->assertTrue('<ENC>' === $encryptor->decrypt($result));
 
         // Assert that an encrypted then decrypted value returns the original value;
         $value = 'Honey, where are my pants?';

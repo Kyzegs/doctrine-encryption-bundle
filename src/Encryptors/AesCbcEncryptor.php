@@ -45,7 +45,7 @@ class AesCbcEncryptor implements EncryptorInterface, KeyProviderAwareInterface, 
             return null;
         }
 
-        if (str_ends_with($data, DoctrineEncryptListenerInterface::ENCRYPTED_SUFFIX)) {
+        if (CiphertextEnvelope::looksLikeCiphertext($data)) {
             return $data;
         }
 

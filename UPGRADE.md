@@ -1,5 +1,38 @@
 # Upgrade guide
 
+## Upgrading to the hardening release
+
+Three defaults changed. Each has a configuration escape hatch intended for the length of a migration.
+
+**`blind_index_key` no longer falls back to the encryption key.** It stays optional for applications that map
+no blind index, and is required by the ones that do; writing a blind index without it now fails with a message
+naming the setting.
+
+Installations that relied on the fallback must set it explicitly, and it must differ from `encrypt_key`:
+
+```yaml
+doctrine_encryption:
+    encrypt_key: '%env(DOCTRINE_ENCRYPTION_ENCRYPT_KEY)%'
+    blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
+```
+
+A *new* value changes every stored blind index, so rebuild them afterwards:
+
+```bash
+bin/console encrypt:blind-index --dry-run
+bin/console encrypt:blind-index --batch-size=500
+```
+
+**Unauthenticated AES-CBC ciphertext is refused.** Installations still holding CBC values set
+`allow_legacy_cbc: true`, run `encrypt:database rotate`, then remove the setting.
+
+**A ciphertext may only be read from the field it was written to.** This affects installations that renamed a
+mapped field and relied on the envelope's associated data to keep old values readable. Set
+`verify_associated_data: false`, run `encrypt:database rotate`, then remove the setting.
+
+Also note that `is_disabled: true` no longer decrypts on load. It previously handed plaintext back to Doctrine
+while leaving encryption off, so a subsequent write persisted the value in the clear.
+
 ## Migrating from `specshaper/encrypt-bundle`
 
 The bundled Rector set migrates the complete public PHP API from

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexMetadataProvider;
+use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexQueryHelper;
 use Kyzegs\DoctrineEncryptionBundle\BlindIndex\BlindIndexUpdater;
 use Kyzegs\DoctrineEncryptionBundle\Command\BlindIndexDatabaseCommand;
 use Kyzegs\DoctrineEncryptionBundle\Command\EncryptDatabaseCommand;
@@ -39,6 +40,8 @@ return static function (ContainerConfigurator $container): void {
             null,
             param('doctrine_encryption.default_associated_data'),
             param('doctrine_encryption.encryptor_class'),
+            param('doctrine_encryption.allow_legacy_cbc'),
+            param('doctrine_encryption.verify_associated_data'),
         ])
         // Fetched by the bundle's boot() to supply the DBAL type, which Doctrine builds outside the container.
         ->public();
@@ -48,6 +51,8 @@ return static function (ContainerConfigurator $container): void {
 
     $services->set(BlindIndexMetadataProvider::class);
     $services->set(BlindIndexUpdater::class)->args([service(BlindIndexHasherInterface::class)]);
+    $services->set(BlindIndexQueryHelper::class)
+        ->args([service('doctrine'), service(BlindIndexMetadataProvider::class), service(BlindIndexHasherInterface::class)]);
     $services->set(EncryptedJsonCodec::class)->args([service(EncryptorInterface::class)]);
     $services->set(EncryptedFieldMetadataProvider::class)
         ->args([param('doctrine_encryption.annotation_classes')]);
