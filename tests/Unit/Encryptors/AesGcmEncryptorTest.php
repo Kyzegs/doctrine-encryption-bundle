@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Kyzegs\DoctrineEncryptionBundle\Tests\Unit\Encryptors;
 
+use Kyzegs\DoctrineEncryptionBundle\Encryptors\AesCbcEncryptor;
 use Kyzegs\DoctrineEncryptionBundle\Encryptors\AesGcmEncryptor;
 use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Kyzegs\DoctrineEncryptionBundle\Key\StaticKeyProvider;
@@ -30,7 +31,7 @@ class AesGcmEncryptorTest extends \PHPUnit\Framework\TestCase
         $this->assertTrue(null === $result);
     }
 
-    public function testEncryptOnlySuffix(): void
+    public function testPlaintextEndingInTheSuffixIsStillEncrypted(): void
     {
         // Given
         $encryptor = new AesGcmEncryptor(new EventDispatcher());
@@ -41,7 +42,52 @@ class AesGcmEncryptorTest extends \PHPUnit\Framework\TestCase
         $result = $encryptor->encrypt('<ENC>');
 
         // Then
-        $this->assertTrue('<ENC>' === $result);
+        $this->assertIsString($result);
+        $this->assertStringStartsWith('SSEB1:gcm:', $result);
+        $this->assertSame('<ENC>', $encryptor->decrypt($result));
+    }
+
+    public function testUserSuppliedTextEndingInTheSuffixIsNotStoredInTheClear(): void
+    {
+        // Given
+        $encryptor = new AesGcmEncryptor(new EventDispatcher());
+        $encryptor->setSecretKey(self::TEST_KEY);
+        $value = 'harmless note <ENC>';
+
+        // When
+        $result = $encryptor->encrypt($value, 'note');
+
+        // Then
+        $this->assertIsString($result);
+        $this->assertStringNotContainsString('harmless note', $result);
+        $this->assertSame($value, $encryptor->decrypt($result, 'note'));
+    }
+
+    public function testEmptyStringSurvivesARoundTrip(): void
+    {
+        // Given
+        $encryptor = new AesGcmEncryptor(new EventDispatcher());
+        $encryptor->setSecretKey(self::TEST_KEY);
+
+        // When
+        $ciphertext = $encryptor->encrypt('', 'note');
+
+        // Then
+        $this->assertIsString($ciphertext);
+        $this->assertSame('', $encryptor->decrypt($ciphertext, 'note'));
+    }
+
+    public function testCiphertextCannotBeReadFromAnotherColumn(): void
+    {
+        // Given
+        $encryptor = new AesGcmEncryptor(new EventDispatcher());
+        $encryptor->setSecretKey(self::TEST_KEY);
+        $ciphertext = $encryptor->encrypt('123-45-6789', 'ssn');
+        $this->assertIsString($ciphertext);
+
+        // Then
+        $this->expectException(EncryptException::class);
+        $encryptor->decrypt($ciphertext, 'nickname');
     }
 
     public function testEncryptAndDecryptReturnsOriginalValue(): void
@@ -160,6 +206,18 @@ class AesGcmEncryptorTest extends \PHPUnit\Framework\TestCase
 
         $this->assertIsString($ciphertext);
         $this->assertStringStartsWith('SSEB1:gcm:primary:', $ciphertext);
+        $this->assertSame('secret', $encryptor->decrypt($ciphertext, 'oldPropertyName'));
+    }
+
+    public function testRenamedFieldStaysReadableWhileVerificationIsRelaxed(): void
+    {
+        $encryptor = new AesGcmEncryptor(new EventDispatcher());
+        $encryptor->setKeyProvider(new StaticKeyProvider(self::TEST_KEY, 'primary'));
+
+        $ciphertext = $encryptor->encrypt('secret', 'oldPropertyName');
+        $this->assertIsString($ciphertext);
+
+        $encryptor->setAssociatedDataVerified(false);
         $this->assertSame('secret', $encryptor->decrypt($ciphertext, 'renamedProperty'));
     }
 
@@ -194,14 +252,39 @@ class AesGcmEncryptorTest extends \PHPUnit\Framework\TestCase
         $encryptor->decrypt($ciphertext, 'field');
     }
 
-    public function testDefaultGcmEncryptorReadsLegacyCbcCiphertext(): void
+    public function testLegacyCbcCiphertextIsRefusedByDefault(): void
     {
         $encryptor = new AesGcmEncryptor(new EventDispatcher());
         $encryptor->setSecretKey(self::TEST_KEY);
+
+        $this->expectException(EncryptException::class);
+        $encryptor->decrypt('5hhCphjZSgXvZgAu9t3O99fnFsdDgHr67QR7lf8NVZdgHTH8Dj/gsfQ+AI2agJOc<ENC>');
+    }
+
+    public function testLegacyCbcCiphertextIsReadableWhenExplicitlyAllowed(): void
+    {
+        $encryptor = new AesGcmEncryptor(new EventDispatcher());
+        $encryptor->setSecretKey(self::TEST_KEY);
+        $encryptor->setLegacyCbcAllowed(true);
 
         $this->assertSame(
             'Honey, where are my pants?',
             $encryptor->decrypt('5hhCphjZSgXvZgAu9t3O99fnFsdDgHr67QR7lf8NVZdgHTH8Dj/gsfQ+AI2agJOc<ENC>'),
         );
+    }
+
+    public function testCbcEnvelopeCannotDowngradeTheGcmEncryptor(): void
+    {
+        $keyProvider = new StaticKeyProvider(self::TEST_KEY, 'primary');
+        $cbcEncryptor = new AesCbcEncryptor(new EventDispatcher());
+        $cbcEncryptor->setKeyProvider($keyProvider);
+        $cbcCiphertext = $cbcEncryptor->encrypt('downgraded', 'note');
+        $this->assertIsString($cbcCiphertext);
+
+        $encryptor = new AesGcmEncryptor(new EventDispatcher());
+        $encryptor->setKeyProvider($keyProvider);
+
+        $this->expectException(EncryptException::class);
+        $encryptor->decrypt($cbcCiphertext, 'note');
     }
 }

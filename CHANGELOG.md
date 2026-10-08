@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+Correctness and hardening release. See [UPGRADE.md](UPGRADE.md) for the required configuration changes.
+
+- Fix an off-by-one length check that made an encrypted empty string unreadable on every subsequent load.
+- Stop the unit of work from keeping the ciphertext it just wrote, which made every flush after an insert or
+  update rewrite every encrypted column of that entity with a fresh IV.
+- Encrypt plaintext that merely ends with the `<ENC>` suffix instead of storing it in the clear.
+- Bind a ciphertext to the field it was written to, refusing reads from another field unless
+  `verify_associated_data` is disabled for a rename migration.
+- Refuse unauthenticated AES-CBC ciphertext, through the versioned envelope and the unversioned legacy path
+  alike, unless `allow_legacy_cbc` is enabled for a migration.
+- Resolve encrypted and blind-index fields that a mapped superclass declares as private properties, which
+  previously threw a `ReflectionException` or silently skipped the field.
+- Stop `blind_index_key` from silently falling back to the encryption key. It remains optional for
+  applications that map no blind index, and is required, and must differ from `encrypt_key`, for those that
+  do.
+- Stop `is_disabled: true` from decrypting on load and letting the plaintext be written back to the column.
+- Keep plaintext out of `EncryptException`, which exposed it to any handler that dumps exception properties.
 - Add `BlindIndexQueryHelper`, which builds blind-index lookups from the mapping so a search no longer has to
   repeat the normalizer declared on the attribute.
 

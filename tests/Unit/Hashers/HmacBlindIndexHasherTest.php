@@ -38,6 +38,16 @@ class HmacBlindIndexHasherTest extends TestCase
         $this->assertNull($hasher->hash(null));
     }
 
+    public function testHashingWithoutAConfiguredKeyThrowsException(): void
+    {
+        $hasher = new HmacBlindIndexHasher();
+
+        $this->expectException(EncryptException::class);
+        $this->expectExceptionMessage('Blind indexes require a "blind_index_key"');
+
+        $hasher->hash('test@example.com');
+    }
+
     public function testUnknownNormalizerThrowsException(): void
     {
         $hasher = new HmacBlindIndexHasher('secret');
