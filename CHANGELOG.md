@@ -1,8 +1,9 @@
 # Changelog
 
-## Unreleased
+## 2.0.0 (2026-10-08) Hardening, encrypted_text DBAL type, and blind-index queries
 
-Correctness and hardening release. See [UPGRADE.md](UPGRADE.md) for the required configuration changes.
+Changes three defaults that 1.x left open. Most installations need no configuration change; see
+[UPGRADE.md](UPGRADE.md#upgrading-from-1x-to-20) to check yours.
 
 - Fix an off-by-one length check that made an encrypted empty string unreadable on every subsequent load.
 - Stop the unit of work from keeping the ciphertext it just wrote, which made every flush after an insert or
