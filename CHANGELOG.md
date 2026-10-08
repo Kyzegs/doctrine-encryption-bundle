@@ -25,6 +25,8 @@ Correctness and hardening release. See [UPGRADE.md](UPGRADE.md) for the required
   rather than through lifecycle events, so array and partial hydration are decrypted too. It supports neither
   blind indexes, encrypted JSON, `encrypt:database`, nor field binding, because a DBAL type has no column
   context.
+- Make `encrypt:database --dry-run` perform every transformation in memory, so it reports unreadable
+  ciphertext before a real run and doubles as the 1.x to 2.0 upgrade check.
 
 ## 1.1.0 (2026-06-24) Encrypted JSON arrays and typed internals
 

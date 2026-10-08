@@ -218,6 +218,33 @@ final class DoctrineEncryptionTest extends KernelTestCase
         self::assertStringStartsWith('SSEB1:gcm:integration:', $embeddedEncrypted);
     }
 
+    public function testDatabaseCommandDryRunSurfacesUnreadableCiphertextWithoutWriting(): void
+    {
+        $record = new EncryptedRecord();
+        $record->secret = 'Dry Run Secret';
+        $record->mappedSecret = 'Dry Run Mapped Secret';
+        $record->contact = new EncryptedContact('Dry Run Embedded Secret');
+        $this->entityManager->persist($record);
+        $this->entityManager->flush();
+
+        // A value bound to another field is what a rename without rotation leaves behind.
+        $connection = $this->entityManager->getConnection();
+        $connection->executeStatement('UPDATE encrypted_record SET mapped_secret = secret_value WHERE id = ?', [$record->id]);
+        $before = $connection->fetchAssociative('SELECT * FROM encrypted_record WHERE id = ?', [$record->id]);
+
+        $command = self::getContainer()->get(EncryptDatabaseCommand::class);
+        self::assertInstanceOf(EncryptDatabaseCommand::class, $command);
+
+        try {
+            (new CommandTester($command))->execute(['direction' => 'rotate', '--dry-run' => true]);
+            self::fail('A dry run must read every value, so a misbound one has to fail it.');
+        } catch (EncryptException $exception) {
+            self::assertStringContainsString('verify_associated_data', $exception->getMessage());
+        }
+
+        self::assertSame($before, $connection->fetchAssociative('SELECT * FROM encrypted_record WHERE id = ?', [$record->id]));
+    }
+
     public function testJsonArraysStayPlaintextInEntityAndEncryptedInDatabase(): void
     {
         $record = new EncryptedRecord();

@@ -279,7 +279,9 @@ bin/console encrypt:database encrypt --dry-run
 bin/console encrypt:database decrypt --manager=tenant --batch-size=100
 ```
 
-Association identifiers are rejected because they cannot be updated safely by the low-level command. Always take a verified backup before a write operation.
+`--dry-run` performs every decryption and encryption in memory without writing, so it reports unreadable
+ciphertext before a real run changes anything. Association identifiers are rejected because they cannot be
+updated safely by the low-level command. Always take a verified backup before a write operation.
 
 ## Multiple Doctrine connections
 
@@ -322,4 +324,4 @@ Likewise, `encryptor_service` accepts any registered `EncryptorInterface` servic
   decrypted on read, so entities hold whatever the column holds. It does not affect `encrypted_text` columns.
 - Test restoration and rotation on a copy of production data before operating on production.
 
-See [UPGRADE.md](UPGRADE.md) before upgrading an existing installation and [SECURITY.md](SECURITY.md) for vulnerability reporting.
+See [UPGRADE.md](UPGRADE.md#upgrading-from-1x-to-20) before upgrading an existing installation and [SECURITY.md](SECURITY.md) for vulnerability reporting.
