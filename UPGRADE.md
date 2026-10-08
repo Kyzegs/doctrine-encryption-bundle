@@ -1,14 +1,40 @@
 # Upgrade guide
 
-## Upgrading to the hardening release
+## Upgrading from 1.x to 2.0
 
-Three defaults changed. Each has a configuration escape hatch intended for the length of a migration.
+2.0 changes no PHP API, so application code stays as it is. What changed are three defaults that 1.x left
+open, and most installations need no configuration change at all.
 
-**`blind_index_key` no longer falls back to the encryption key.** It stays optional for applications that map
-no blind index, and is required by the ones that do; writing a blind index without it now fails with a message
-naming the setting.
+### 1. Find out whether existing data is affected
 
-Installations that relied on the fallback must set it explicitly, and it must differ from `encrypt_key`:
+From a 2.0 checkout, point the console at production or a recent copy and run:
+
+```bash
+bin/console encrypt:database rotate --dry-run
+```
+
+The dry run decrypts and re-encrypts every value in memory and writes nothing. If it succeeds, all stored
+ciphertext is readable on 2.0. If it fails, the message names the setting that row needs; enable it in the
+checkout and run the dry run again until it passes, noting each setting for step 3. Blind indexes are not
+covered by the dry run; they are step 2.
+
+| If your 1.x installation… | then on 2.0… | do this |
+| --- | --- | --- |
+| still holds AES-CBC ciphertext, typically rows from `specshaper/encrypt-bundle` that were never rotated | reading those rows throws | set `allow_legacy_cbc: true`, rotate, remove it |
+| renamed an encrypted field without rotating its values | reading those rows throws | set `verify_associated_data: false`, rotate, remove it |
+| maps a `#[BlindIndex]` without setting `blind_index_key` | writing or searching a blind index throws | step 2 |
+| sets `blind_index_key` to the same value as `encrypt_key` | the container refuses to compile | step 2 |
+| runs with `is_disabled: true` | entities hold the stored ciphertext rather than plaintext | nothing, unless code relied on reading plaintext while disabled |
+
+### 2. Give blind indexes their own key
+
+1.x hashed blind indexes with `encrypt_key` whenever `blind_index_key` was unset. 2.0 requires a separate key,
+and a new key changes every stored hash, so lookups find nothing until the indexes are rebuilt. 1.1 already
+reads `blind_index_key`, so the least disruptive order is to do this *before* upgrading:
+
+```bash
+bin/console encrypt:genkey
+```
 
 ```yaml
 doctrine_encryption:
@@ -16,22 +42,39 @@ doctrine_encryption:
     blind_index_key: '%env(DOCTRINE_ENCRYPTION_BLIND_INDEX_KEY)%'
 ```
 
-A *new* value changes every stored blind index, so rebuild them afterwards:
+Deploy the new key and rebuild straight away, since searches miss until the rebuild finishes:
 
 ```bash
 bin/console encrypt:blind-index --dry-run
 bin/console encrypt:blind-index --batch-size=500
 ```
 
-**Unauthenticated AES-CBC ciphertext is refused.** Installations still holding CBC values set
-`allow_legacy_cbc: true`, run `encrypt:database rotate`, then remove the setting.
+Installations that map no blind index can leave `blind_index_key` unset.
 
-**A ciphertext may only be read from the field it was written to.** This affects installations that renamed a
-mapped field and relied on the envelope's associated data to keep old values readable. Set
-`verify_associated_data: false`, run `encrypt:database rotate`, then remove the setting.
+### 3. Upgrade
 
-Also note that `is_disabled: true` no longer decrypts on load. It previously handed plaintext back to Doctrine
-while leaving encryption off, so a subsequent write persisted the value in the clear.
+```console
+composer require kyzegs/doctrine-encryption-bundle:^2.0
+```
+
+If the dry run passed, you are done. Otherwise deploy with whichever settings it named, then rotate:
+
+```yaml
+doctrine_encryption:
+    allow_legacy_cbc: true          # only if the dry run asked for it
+    verify_associated_data: false   # only if the dry run asked for it
+```
+
+```bash
+bin/console encrypt:database rotate --batch-size=250
+```
+
+Then remove both settings and run the dry run once more. Leaving either in place reopens the gap 2.0 closes:
+CBC lets anyone who can write to the database strip authentication from a value, and unverified associated
+data lets a ciphertext be moved between columns.
+
+If the dry run cannot be run against real data, enabling both settings, rotating, and removing them is always
+safe: it reproduces 1.x read behaviour for exactly the length of the rotation.
 
 ## Migrating from `specshaper/encrypt-bundle`
 
@@ -99,7 +142,7 @@ installs; it should not attempt to delete or rewrite the legacy configuration.
 The original `specshaper/encrypt-bundle` does not provide blind indexes, so Rector cannot infer which encrypted
 fields should receive one or safely create the required database columns. Add `#[BlindIndex]` fields explicitly,
 configure a distinct `blind_index_key`, create and review the Doctrine migration, then populate existing rows with
-`bin/console encrypt:blind-index update --dry-run` before running it without `--dry-run`.
+`bin/console encrypt:blind-index --dry-run` before running it without `--dry-run`.
 
 ## Upgrading to the modernized release
 
