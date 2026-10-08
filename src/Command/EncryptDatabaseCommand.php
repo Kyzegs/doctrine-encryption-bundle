@@ -42,7 +42,7 @@ final class EncryptDatabaseCommand extends Command
             ->addArgument('direction', InputArgument::REQUIRED, 'One of: encrypt, decrypt, rotate.')
             ->addOption('manager', null, InputOption::VALUE_REQUIRED, 'Doctrine ORM manager name.')
             ->addOption('batch-size', null, InputOption::VALUE_REQUIRED, 'Rows per transaction.', '250')
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Inspect and count rows without writing changes.')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Run every transformation without writing changes.')
             ->addOption('force', 'f', InputOption::VALUE_NONE, 'Skip the confirmation prompt.')
         ;
     }
@@ -188,9 +188,7 @@ final class EncryptDatabaseCommand extends Command
 
             try {
                 foreach ($rows as $row) {
-                    if (!$dryRun) {
-                        $this->updateRow($connection, $quotedTable, $row, $fieldAliases, $identifierAliases, $operation);
-                    }
+                    $this->updateRow($connection, $quotedTable, $row, $fieldAliases, $identifierAliases, $operation, $dryRun);
                     ++$processed;
                 }
                 if (!$dryRun) {
@@ -214,7 +212,7 @@ final class EncryptDatabaseCommand extends Command
      * @param array<string, DatabaseEncryptedField> $fieldAliases
      * @param array<string, string>                 $identifierAliases
      */
-    private function updateRow(Connection $connection, string $quotedTable, array $row, array $fieldAliases, array $identifierAliases, DatabaseOperation $operation): void
+    private function updateRow(Connection $connection, string $quotedTable, array $row, array $fieldAliases, array $identifierAliases, DatabaseOperation $operation, bool $dryRun): void
     {
         $platform = $connection->getDatabasePlatform();
         $assignments = [];
@@ -233,6 +231,10 @@ final class EncryptDatabaseCommand extends Command
             $parameter = 'field_'.count($parameters);
             $assignments[] = $platform->quoteIdentifier($mapping->column).' = :'.$parameter;
             $parameters[$parameter] = $newValue;
+        }
+
+        if ($dryRun) {
+            return;
         }
 
         foreach ($identifierAliases as $alias => $column) {
