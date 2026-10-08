@@ -6,6 +6,7 @@ namespace Kyzegs\DoctrineEncryptionBundle\BlindIndex;
 
 use Doctrine\ORM\Mapping\ClassMetadata;
 use Doctrine\Persistence\ManagerRegistry;
+use Doctrine\Persistence\ObjectManager;
 use Kyzegs\DoctrineEncryptionBundle\Exception\EncryptException;
 use Kyzegs\DoctrineEncryptionBundle\Hashers\BlindIndexHasherInterface;
 
@@ -76,7 +77,7 @@ final readonly class BlindIndexQueryHelper
     {
         $manager = $this->registry->getManagerForClass($className);
 
-        if (null === $manager) {
+        if (!$manager instanceof ObjectManager) {
             throw new EncryptException(sprintf('"%s" is not managed by any Doctrine manager.', $className));
         }
 
